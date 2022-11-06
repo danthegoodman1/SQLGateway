@@ -7,6 +7,7 @@ import (
 	"github.com/danthegoodman1/PSQLGateway/utils"
 	"github.com/jackc/pgx/v4"
 	"github.com/jackc/pgx/v4/pgxpool"
+	pg_query "github.com/pganalyze/pg_query_go/v2"
 	"github.com/rs/zerolog"
 	"net/http"
 	"time"
@@ -23,9 +24,11 @@ type (
 	}
 
 	ResQuery struct {
-		Rows  [][]any `json:",omitempty"`
-		Error string  `json:",omitempty"`
-		Time  time.Duration
+		Rows      [][]any        `json:",omitempty"`
+		Error     *string        `json:",omitempty"`
+		Time      *time.Duration `json:",omitempty"`
+		Cacheable *bool          `json:",omitempty"`
+		CacheHit  *bool          `json:",omitempty"`
 	}
 
 	QueryResponse struct {
@@ -70,15 +73,11 @@ QueryLoop:
 			rows, err = conn.Query(ctx, query.Statement, query.Params...)
 			return err
 		})
-		row.Time = time.Since(s)
+		row.Time = utils.Ptr(time.Since(s))
 		if err != nil {
-			row.Error = err.Error()
-			continue
-		}
-
-		if !exec {
+			row.Error = utils.Ptr(err.Error())
+		} else if !exec {
 			// Get columns
-			fmt.Printf("%+v %s", rows.FieldDescriptions(), rows.FieldDescriptions()[0].Name)
 			colNames := make([]any, len(rows.FieldDescriptions()))
 			for i, desc := range rows.FieldDescriptions() {
 				colNames[i] = string(desc.Name)
@@ -89,14 +88,36 @@ QueryLoop:
 			for rows.Next() {
 				rowVals, err := rows.Values()
 				if err != nil {
-					row.Error = err.Error()
+					row.Error = utils.Ptr(err.Error())
 					continue QueryLoop
 				}
 				row.Rows = append(row.Rows, rowVals)
+			}
+
+			selectOnly, err := IsSelectOnly(query.Statement)
+			if err != nil {
+				logger.Error().Err(err).Str("statement", query.Statement).Msg("error checking if select only")
+			} else if selectOnly {
+				row.Cacheable = utils.Ptr(true)
 			}
 		}
 		qr.Queries[i] = row
 	}
 
 	return qr, nil
+}
+
+func IsSelectOnly(statement string) (selectOnly bool, err error) {
+	result, err := pg_query.Parse(statement)
+	if err != nil {
+		err = fmt.Errorf("error in pg_query.Parse: %w", err)
+		return
+	}
+	for _, stmt := range result.Stmts {
+		if stmt.Stmt.GetSelectStmt() == nil {
+			return
+		}
+	}
+
+	return true, nil
 }

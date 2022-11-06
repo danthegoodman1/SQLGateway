@@ -148,6 +148,15 @@ func reliableExec(ctx context.Context, pool *pgxpool.Pool, tryTimeout time.Durat
 		if IsPermSQLErr(err) {
 			return backoff.Permanent(err)
 		}
+		if IsRelationDoesNotExist(err) {
+			return backoff.Permanent(err)
+		}
+		if IsUniqueConstraint(err) {
+			return backoff.Permanent(err)
+		}
+		if IsSyntaxError(err) {
+			return backoff.Permanent(err)
+		}
 		// not context.DeadlineExceeded as that's expected due to `tryTimeout`
 		if errors.Is(err, context.Canceled) {
 			return backoff.Permanent(err)
@@ -189,6 +198,33 @@ func IsUniqueConstraint(err error) bool {
 	if errors.As(err, &pgErr) {
 		if pgErr.Code == "23505" {
 			// This is a duplicate key - unique constraint
+			return true
+		}
+	}
+	return false
+}
+
+func IsRelationDoesNotExist(err error) bool {
+	if err == nil {
+		return false
+	}
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) {
+		if pgErr.Code == "42P01" {
+			// This is a duplicate key - unique constraint
+			return true
+		}
+	}
+	return false
+}
+
+func IsSyntaxError(err error) bool {
+	if err == nil {
+		return false
+	}
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) {
+		if pgErr.Code == "42601" {
 			return true
 		}
 	}
