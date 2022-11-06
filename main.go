@@ -8,11 +8,11 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/danthegoodman1/GoAPITemplate/crdb"
-	"github.com/danthegoodman1/GoAPITemplate/gologger"
-	"github.com/danthegoodman1/GoAPITemplate/http_server"
-	"github.com/danthegoodman1/GoAPITemplate/migrations"
-	"github.com/danthegoodman1/GoAPITemplate/utils"
+	"github.com/danthegoodman1/PSQLGateway/crdb"
+	"github.com/danthegoodman1/PSQLGateway/gologger"
+	"github.com/danthegoodman1/PSQLGateway/http_server"
+	"github.com/danthegoodman1/PSQLGateway/migrations"
+	"github.com/danthegoodman1/PSQLGateway/utils"
 )
 
 var logger = gologger.NewLogger()
