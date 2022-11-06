@@ -1,0 +1,102 @@
+package http_server
+
+import (
+	"context"
+	"fmt"
+	"github.com/danthegoodman1/PSQLGateway/pg"
+	"github.com/danthegoodman1/PSQLGateway/utils"
+	"github.com/jackc/pgx/v4"
+	"github.com/jackc/pgx/v4/pgxpool"
+	"github.com/rs/zerolog"
+	"net/http"
+	"time"
+)
+
+type (
+	QueryRequest struct {
+		Queries []ReqQuery
+	}
+
+	ReqQuery struct {
+		Statement string
+		Params    []any
+	}
+
+	ResQuery struct {
+		Rows  [][]any `json:",omitempty"`
+		Error string  `json:",omitempty"`
+		Time  time.Duration
+	}
+
+	QueryResponse struct {
+		Queries []ResQuery `json:",omitempty"`
+	}
+)
+
+func (s *HTTPServer) PostQuery(c *CustomContext) error {
+	var body QueryRequest
+	if err := ValidateRequest(c, &body); err != nil {
+		return c.String(http.StatusBadRequest, err.Error())
+	}
+
+	logger := zerolog.Ctx(c.Request().Context())
+	logger.Info().Msg(c.Request().URL.Path)
+
+	res, err := HandleQueryRequest(c.Request().Context(), body, c.Request().URL.String() == "/exec")
+	if err != nil {
+		return c.InternalError(err, "error handling query request")
+	}
+
+	return c.JSON(http.StatusOK, res)
+}
+
+func HandleQueryRequest(ctx context.Context, req QueryRequest, exec bool) (QueryResponse, error) {
+	logger := zerolog.Ctx(ctx)
+	logger.Debug().Msg("handling query request")
+
+	qr := QueryResponse{
+		Queries: make([]ResQuery, len(req.Queries)),
+	}
+
+QueryLoop:
+	for i, query := range req.Queries {
+		row := ResQuery{
+			Rows: [][]any{},
+		}
+
+		var rows pgx.Rows
+		s := time.Now()
+		err := utils.ReliableExec(ctx, pg.PGPool, 30*time.Second, func(ctx context.Context, conn *pgxpool.Conn) (err error) {
+			rows, err = conn.Query(ctx, query.Statement, query.Params...)
+			return err
+		})
+		row.Time = time.Since(s)
+		if err != nil {
+			row.Error = err.Error()
+			continue
+		}
+
+		if !exec {
+			// Get columns
+			fmt.Printf("%+v %s", rows.FieldDescriptions(), rows.FieldDescriptions()[0].Name)
+			colNames := make([]any, len(rows.FieldDescriptions()))
+			for i, desc := range rows.FieldDescriptions() {
+				colNames[i] = string(desc.Name)
+			}
+			row.Rows = append(row.Rows, colNames)
+
+			// Get row values
+			for rows.Next() {
+				rowVals, err := rows.Values()
+				if err != nil {
+					row.Error = err.Error()
+					continue QueryLoop
+				}
+				row.Rows = append(row.Rows, rowVals)
+			}
+		}
+		qr.Queries[i] = row
+	}
+
+	return qr, nil
+}

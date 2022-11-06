@@ -3,5 +3,6 @@ package utils
 import "os"
 
 var (
-	CRDB_DSN = os.Getenv("CRDB_DSN")
+	PG_DSN     = os.Getenv("PG_DSN")
+	POOL_CONNS = GetEnvOrDefaultInt("POOL_CONNS", 10)
 )

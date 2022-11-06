@@ -8,26 +8,19 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/danthegoodman1/PSQLGateway/crdb"
 	"github.com/danthegoodman1/PSQLGateway/gologger"
 	"github.com/danthegoodman1/PSQLGateway/http_server"
-	"github.com/danthegoodman1/PSQLGateway/migrations"
+	"github.com/danthegoodman1/PSQLGateway/pg"
 	"github.com/danthegoodman1/PSQLGateway/utils"
 )
 
 var logger = gologger.NewLogger()
 
 func main() {
-	logger.Debug().Msg("starting Tangia mono api")
+	logger.Info().Msg("starting PSQLGateway")
 
-	if err := crdb.ConnectToDB(); err != nil {
-		logger.Error().Err(err).Msg("error connecting to CRDB")
-		os.Exit(1)
-	}
-
-	err := migrations.CheckMigrations(utils.CRDB_DSN)
-	if err != nil {
-		logger.Error().Err(err).Msg("Error checking migrations")
+	if err := pg.ConnectToDB(); err != nil {
+		logger.Error().Err(err).Msg("error connecting to PG Pool")
 		os.Exit(1)
 	}
 
@@ -39,7 +32,7 @@ func main() {
 	logger.Warn().Msg("received shutdown signal!")
 
 	// Convert the time to seconds
-	sleepTime := utils.GetEnvOrDefaultInt("SHUTDOWN_SLEEP_SEC", 35)
+	sleepTime := utils.GetEnvOrDefaultInt("SHUTDOWN_SLEEP_SEC", 0)
 	logger.Info().Msg(fmt.Sprintf("sleeping for %ds before exiting", sleepTime))
 
 	time.Sleep(time.Second * time.Duration(sleepTime))
