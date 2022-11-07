@@ -15,24 +15,25 @@ import (
 
 type (
 	QueryRequest struct {
-		Queries []ReqQuery
+		Queries []*ReqQuery
 	}
 
 	ReqQuery struct {
-		Statement string
-		Params    []any
+		Statement   string
+		Params      []any
+		IgnoreCache *bool
 	}
 
 	ResQuery struct {
-		Rows      [][]any        `json:",omitempty"`
-		Error     *string        `json:",omitempty"`
-		Time      *time.Duration `json:",omitempty"`
-		Cacheable *bool          `json:",omitempty"`
-		CacheHit  *bool          `json:",omitempty"`
+		Rows     [][]any        `json:",omitempty"`
+		Error    *string        `json:",omitempty"`
+		Time     *time.Duration `json:",omitempty"`
+		CacheHit *bool          `json:",omitempty"`
+		Cached   *bool          `json:",omitempty"`
 	}
 
 	QueryResponse struct {
-		Queries []ResQuery `json:",omitempty"`
+		Queries []*ResQuery `json:",omitempty"`
 	}
 )
 
@@ -58,17 +59,24 @@ func HandleQueryRequest(ctx context.Context, req QueryRequest, exec bool) (Query
 	logger.Debug().Msg("handling query request")
 
 	qr := QueryResponse{
-		Queries: make([]ResQuery, len(req.Queries)),
+		Queries: make([]*ResQuery, len(req.Queries)),
 	}
 
 QueryLoop:
 	for i, query := range req.Queries {
-		row := ResQuery{
+		row := &ResQuery{
 			Rows: [][]any{},
+		}
+		qr.Queries[i] = row
+
+		s := time.Now()
+		if query.IgnoreCache == nil || *query.IgnoreCache == false {
+			// TODO: Check cache
+			row.CacheHit = utils.Ptr(true)
+			// Return if cache hit
 		}
 
 		var rows pgx.Rows
-		s := time.Now()
 		err := utils.ReliableExec(ctx, pg.PGPool, 30*time.Second, func(ctx context.Context, conn *pgxpool.Conn) (err error) {
 			rows, err = conn.Query(ctx, query.Statement, query.Params...)
 			return err
@@ -97,11 +105,11 @@ QueryLoop:
 			selectOnly, err := IsSelectOnly(query.Statement)
 			if err != nil {
 				logger.Error().Err(err).Str("statement", query.Statement).Msg("error checking if select only")
-			} else if selectOnly {
-				row.Cacheable = utils.Ptr(true)
+			} else if selectOnly && query.IgnoreCache == nil || *query.IgnoreCache == false {
+				// TODO: Cache result
+				row.Cached = utils.Ptr(true)
 			}
 		}
-		qr.Queries[i] = row
 	}
 
 	return qr, nil
