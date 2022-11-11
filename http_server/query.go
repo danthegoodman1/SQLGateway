@@ -3,11 +3,11 @@ package http_server
 import (
 	"context"
 	"fmt"
+	"github.com/cockroachdb/cockroachdb-parser/pkg/sql/parser"
 	"github.com/danthegoodman1/PSQLGateway/pg"
 	"github.com/danthegoodman1/PSQLGateway/utils"
 	"github.com/jackc/pgx/v4"
 	"github.com/jackc/pgx/v4/pgxpool"
-	pg_query "github.com/pganalyze/pg_query_go/v2"
 	"github.com/rs/zerolog"
 	"net/http"
 	"time"
@@ -102,7 +102,7 @@ QueryLoop:
 				row.Rows = append(row.Rows, rowVals)
 			}
 
-			selectOnly, err := IsSelectOnly(query.Statement)
+			selectOnly, err := CRDBIsSelectOnly(query.Statement)
 			if err != nil {
 				logger.Error().Err(err).Str("statement", query.Statement).Msg("error checking if select only")
 			} else if selectOnly && query.IgnoreCache == nil || *query.IgnoreCache == false {
@@ -115,17 +115,26 @@ QueryLoop:
 	return qr, nil
 }
 
-func IsSelectOnly(statement string) (selectOnly bool, err error) {
-	result, err := pg_query.Parse(statement)
+//func PSQLIsSelectOnly(statement string) (selectOnly bool, err error) {
+//	result, err := pg_query.Parse(statement)
+//	if err != nil {
+//		err = fmt.Errorf("error in pg_query.Parse: %w", err)
+//		return
+//	}
+//	for _, stmt := range result.Stmts {
+//		if stmt.Stmt.GetSelectStmt() == nil {
+//			return
+//		}
+//	}
+//
+//	return true, nil
+//}
+
+func CRDBIsSelectOnly(statement string) (selectOnly bool, err error) {
+	ast, err := parser.ParseOne(statement)
 	if err != nil {
-		err = fmt.Errorf("error in pg_query.Parse: %w", err)
-		return
-	}
-	for _, stmt := range result.Stmts {
-		if stmt.Stmt.GetSelectStmt() == nil {
-			return
-		}
+		return false, fmt.Errorf("error in parser.ParseOne: %w", err)
 	}
 
-	return true, nil
+	return ast.AST.StatementTag() == "SELECT", nil
 }

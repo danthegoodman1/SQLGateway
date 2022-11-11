@@ -49,8 +49,9 @@ func StartHTTPServer() *HTTPServer {
 	// technical - no auth
 	s.Echo.GET("/hc", s.HealthCheck)
 
-	s.Echo.POST("/exec", ccHandler(s.PostQuery))
-	s.Echo.POST("/query", ccHandler(s.PostQuery))
+	psqlGroup := s.Echo.Group("/psql")
+	psqlGroup.POST("/exec", ccHandler(s.PostQuery))
+	psqlGroup.POST("/query", ccHandler(s.PostQuery))
 
 	s.Echo.Listener = listener
 	go func() {
