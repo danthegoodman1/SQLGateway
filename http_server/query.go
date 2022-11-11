@@ -22,6 +22,7 @@ type (
 		Statement   string
 		Params      []any
 		IgnoreCache *bool
+		ForceCache  *bool
 	}
 
 	ResQuery struct {
@@ -105,7 +106,7 @@ QueryLoop:
 			selectOnly, err := CRDBIsSelectOnly(query.Statement)
 			if err != nil {
 				logger.Error().Err(err).Str("statement", query.Statement).Msg("error checking if select only")
-			} else if selectOnly && query.IgnoreCache == nil || *query.IgnoreCache == false {
+			} else if selectOnly && ShouldCache(query.IgnoreCache, query.ForceCache) {
 				// TODO: Cache result
 				row.Cached = utils.Ptr(true)
 			}
@@ -113,6 +114,17 @@ QueryLoop:
 	}
 
 	return qr, nil
+}
+
+func ShouldCache(ignoreCache, forceCache *bool) bool {
+	if ignoreCache != nil {
+		return *ignoreCache
+	}
+	if forceCache != nil {
+		return *forceCache
+	}
+
+	return utils.CACHE_DEFAULT
 }
 
 //func PSQLIsSelectOnly(statement string) (selectOnly bool, err error) {
