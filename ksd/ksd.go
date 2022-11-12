@@ -3,9 +3,9 @@ package ksd
 import (
 	"fmt"
 	"github.com/danthegoodman1/PSQLGateway/gologger"
+	v1 "k8s.io/api/core/v1"
 	"time"
 
-	v1 "k8s.io/api/discovery/v1"
 	v12 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
@@ -19,15 +19,15 @@ var (
 
 type (
 	KSD struct {
-		kubeClient       *kubernetes.Clientset
-		informerFactory  informers.SharedInformerFactory
-		endpointInformer cache.SharedIndexInformer
-		stopChan         chan struct{}
+		kubeClient      *kubernetes.Clientset
+		informerFactory informers.SharedInformerFactory
+		podInformer     cache.SharedIndexInformer
+		stopChan        chan struct{}
 	}
 )
 
-// NewEndpointKSD creates a new endpoint watcher that listens for added, deleted, and updated endpoints.
-func NewEndpointKSD(namespace, labelSelector string, addFunc, deleteFunc func(obj *v1.Endpoint), updateFunc func(oldObj, newObj *v1.Endpoint)) (*KSD, error) {
+// NewPodKSD creates a new endpoint watcher that listens for added, deleted, and updated endpoints.
+func NewPodKSD(namespace, labelSelector string, addFunc, deleteFunc func(obj *v1.Pod), updateFunc func(oldObj, newObj *v1.Pod)) (*KSD, error) {
 	config, err := rest.InClusterConfig()
 	if err != nil {
 		return nil, fmt.Errorf("error in rest.InClusterConfig: %w", err)
@@ -45,29 +45,29 @@ func NewEndpointKSD(namespace, labelSelector string, addFunc, deleteFunc func(ob
 		options.LabelSelector = labelSelector
 	}))
 
-	endpointInformer := informerFactory.Core().V1().Endpoints().Informer()
-	endpointInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+	podInformer := informerFactory.Core().V1().Pods().Informer()
+	podInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
-			logger.Debug().Interface("obj", obj).Str("informer", "endpoint").Msg("got add event")
-			addFunc(obj.(*v1.Endpoint))
+			logger.Debug().Interface("obj", obj).Str("informer", "pod").Msg("got add event")
+			addFunc(obj.(*v1.Pod))
 		},
 		UpdateFunc: func(oldObj, newObj interface{}) {
-			logger.Debug().Interface("old_obj", oldObj).Interface("new_obj", newObj).Str("informer", "endpoint").Msg("got update event")
-			updateFunc(oldObj.(*v1.Endpoint), newObj.(*v1.Endpoint))
+			logger.Debug().Interface("old_obj", oldObj).Interface("new_obj", newObj).Str("informer", "pod").Msg("got update event")
+			updateFunc(oldObj.(*v1.Pod), newObj.(*v1.Pod))
 		},
 		DeleteFunc: func(obj interface{}) {
-			logger.Debug().Interface("obj", obj).Str("informer", "endpoint").Msg("got delete event")
-			deleteFunc(obj.(*v1.Endpoint))
+			logger.Debug().Interface("obj", obj).Str("informer", "pod").Msg("got delete event")
+			deleteFunc(obj.(*v1.Pod))
 		},
 	})
 	stopChan := make(chan struct{})
-	go endpointInformer.Run(stopChan)
+	go podInformer.Run(stopChan)
 
 	ksd := &KSD{
-		kubeClient:       client,
-		informerFactory:  informerFactory,
-		endpointInformer: endpointInformer,
-		stopChan:         stopChan,
+		kubeClient:      client,
+		informerFactory: informerFactory,
+		podInformer:     podInformer,
+		stopChan:        stopChan,
 	}
 
 	return ksd, nil

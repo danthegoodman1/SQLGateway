@@ -7,4 +7,5 @@ var (
 	POOL_CONNS = GetEnvOrDefaultInt("POOL_CONNS", 10)
 
 	CACHE_DEFAULT = os.Getenv("CACHE_DEFAULT") == "1"
+	K8S_SD        = os.Getenv("K8S_SD") == "1"
 )

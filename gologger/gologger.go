@@ -46,6 +46,8 @@ func NewLogger() zerolog.Logger {
 	}
 	if os.Getenv("DEBUG") == "1" {
 		zerolog.SetGlobalLevel(zerolog.DebugLevel)
+	} else {
+		zerolog.SetGlobalLevel(zerolog.InfoLevel)
 	}
 
 	return logger

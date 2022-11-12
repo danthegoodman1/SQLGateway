@@ -1,0 +1,29 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: "psqlgateway"
+  namespace: default
+  labels:
+    app: "psqlgateway"
+spec:
+  serviceAccountName: psqlgateway
+  containers:
+    - name: psqlgateway
+      image: "psqlgateway:latest"
+      imagePullPolicy: Never
+      resources:
+        limits:
+          cpu: 200m
+          memory: 500Mi
+        requests:
+          cpu: 100m
+          memory: 200Mi
+      env:
+        - name: DEBUG
+          value: "1"
+        - name: K8S_SD
+          value: "1"
+      ports:
+        - containerPort:  8080
+          name:  http
+  restartPolicy: Never
