@@ -21,6 +21,8 @@ type (
 
 var (
 	ErrTxNotFound = errors.New("transaction not found")
+
+	Manager = NewTxManager()
 )
 
 func NewTxManager() *TxManager {
@@ -36,7 +38,7 @@ func NewTxManager() *TxManager {
 		for {
 			select {
 			case <-manager.ticker.C:
-			// TODO: find timed out transactions to abort
+				go manager.handleExpiredTransactions()
 			case <-manager.tickerStopChan:
 				return
 			}
@@ -71,6 +73,7 @@ func (manager *TxManager) NewTx() (string, error) {
 		Expires:    expireTime,
 		CancelChan: make(chan bool, 1),
 		Exited:     false,
+		PoolMu:     &sync.Mutex{},
 	}
 
 	go manager.delayCancelTx(ctx, cancel, tx.CancelChan, tx.ID)
@@ -117,6 +120,9 @@ func (manager *TxManager) RollbackTx(ctx context.Context, txID string) error {
 		return ErrTxNotFound
 	}
 
+	tx.PoolMu.Lock()
+	defer tx.PoolMu.Unlock()
+
 	err := tx.Tx.Rollback(ctx)
 	defer tx.PoolConn.Release()
 
@@ -133,6 +139,9 @@ func (manager *TxManager) CommitTx(ctx context.Context, txID string) error {
 	if tx == nil {
 		return ErrTxNotFound
 	}
+
+	tx.PoolMu.Lock()
+	defer tx.PoolMu.Unlock()
 
 	err := tx.Tx.Commit(ctx)
 	defer tx.PoolConn.Release()
@@ -152,6 +161,38 @@ func (manager *TxManager) delayCancelTx(ctx context.Context, cancel context.Canc
 	case <-ctx.Done():
 		logger.Debug().Msgf("context cancelled for transaction %s", txID)
 		break
+	}
+}
+
+// handleExpiredTransaction should be run in a goroutine
+func (manager *TxManager) handleExpiredTransactions() {
+	logger.Debug().Msg("looking for expired transactions")
+	expireTime := time.Now()
+	expiredTXIDs := make([]string, 0)
+	manager.txMu.Lock()
+	for id, tx := range manager.txMap {
+		if tx.Expires.Before(expireTime) {
+			expiredTXIDs = append(expiredTXIDs, id)
+		}
+	}
+	manager.txMu.Unlock()
+
+	if len(expiredTXIDs) == 0 {
+		logger.Debug().Msg("found no expired transactions")
+		return
+	}
+
+	// Expire the IDs
+	logger.Debug().Msgf("Got %d transactions to expire")
+	for _, txID := range expiredTXIDs {
+		logger.Debug().Msgf("expiring transaction %s", txID)
+		// We will wait forever to try and handle it
+		err := manager.RollbackTx(context.Background(), txID)
+		if err != nil {
+			logger.Error().Err(err).Msgf("error rolling back transaction", txID)
+		} else {
+			logger.Debug().Msgf("expired transaction %s", txID)
+		}
 	}
 }
 

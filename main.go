@@ -70,7 +70,12 @@ func main() {
 		logger.Info().Msg("successfully shutdown HTTP server")
 	}
 	if utils.REDIS_ADDR != "" {
-		red.Shutdown(ctx)
-		logger.Info().Msg("shut down redis")
+		if err := red.Shutdown(ctx); err != nil {
+			logger.Error().Err(err).Msg("error shutting down redis connection")
+		} else {
+			logger.Info().Msg("shut down redis")
+		}
 	}
+	pg.Manager.Shutdown()
+	logger.Info().Msg("shut down tx manager")
 }

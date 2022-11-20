@@ -10,8 +10,6 @@ of whether there were rows returned.
 
 ## TODO
 
-- Concurrency management for accessing a pool connection for a transaction (need a mutex)
-- Scan and abort transactions in background
 - Query handling use transaction if txid exists
 - Endpoints for commit and rollback
 - Register transaction with redis if needed
