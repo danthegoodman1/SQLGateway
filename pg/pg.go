@@ -23,7 +23,7 @@ func ConnectToDB() error {
 		return err
 	}
 
-	config.MaxConns = int32(utils.POOL_CONNS)
+	config.MaxConns = int32(utils.PG_POOL_CONNS)
 	config.MinConns = 1
 	config.HealthCheckPeriod = time.Second * 5
 	config.MaxConnLifetime = time.Minute * 30
