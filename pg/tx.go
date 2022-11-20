@@ -4,7 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/danthegoodman1/PSQLGateway/utils"
+	"github.com/jackc/pgx/v4"
 	"github.com/jackc/pgx/v4/pgxpool"
+	"sync"
 	"time"
 )
 
@@ -16,6 +18,20 @@ type (
 		ID         string
 		PoolConn   *pgxpool.Conn
 	}
+
+	Tx struct {
+		ID         string
+		PoolConn   *pgxpool.Conn
+		Tx         pgx.Tx
+		Expires    time.Time
+		CancelChan chan string
+		Exited     bool
+	}
+)
+
+var (
+	TxMap = make(map[string]*Tx)
+	TxMu  = &sync.Mutex{}
 )
 
 func NewTxMeta() *TxMeta {
