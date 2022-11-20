@@ -3,8 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/danthegoodman1/PSQLGateway/ksd"
-	v1 "k8s.io/api/core/v1"
+	"github.com/danthegoodman1/PSQLGateway/pg"
 	"os"
 	"os/signal"
 	"syscall"
@@ -20,26 +19,26 @@ var logger = gologger.NewLogger()
 func main() {
 	logger.Info().Msg("starting PSQLGateway")
 
-	//if err := pg.ConnectToDB(); err != nil {
-	//	logger.Error().Err(err).Msg("error connecting to PG Pool")
-	//	os.Exit(1)
-	//}
-
-	if utils.K8S_SD {
-		k, err := ksd.NewPodKSD("default", "app=psqlgateway", func(obj *v1.Pod) {
-			//fmt.Println("ADD EVENT: %+v", obj)
-		}, func(obj *v1.Pod) {
-			//fmt.Println("DELETE EVENT: %+v", obj)
-		}, func(oldObj, newObj *v1.Pod) {
-			//fmt.Println("UPDATE EVENT OLD: %+v", oldObj)
-			//fmt.Println("UPDATE EVENT NEW: %+v", newObj)
-		})
-		if err != nil {
-			logger.Error().Err(err).Msg("failed to create new pod ksd")
-			os.Exit(1)
-		}
-		defer k.Stop()
+	if err := pg.ConnectToDB(); err != nil {
+		logger.Error().Err(err).Msg("error connecting to PG Pool")
+		os.Exit(1)
 	}
+
+	//if utils.K8S_SD {
+	//	k, err := ksd.NewPodKSD("default", "app=psqlgateway", func(obj *v1.Pod) {
+	//		//fmt.Println("ADD EVENT: %+v", obj)
+	//	}, func(obj *v1.Pod) {
+	//		//fmt.Println("DELETE EVENT: %+v", obj)
+	//	}, func(oldObj, newObj *v1.Pod) {
+	//		//fmt.Println("UPDATE EVENT OLD: %+v", oldObj)
+	//		//fmt.Println("UPDATE EVENT NEW: %+v", newObj)
+	//	})
+	//	if err != nil {
+	//		logger.Error().Err(err).Msg("failed to create new pod ksd")
+	//		os.Exit(1)
+	//	}
+	//	defer k.Stop()
+	//}
 
 	httpServer := http_server.StartHTTPServer()
 
