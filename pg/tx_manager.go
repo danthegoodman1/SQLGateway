@@ -150,4 +150,7 @@ func (manager *TxManager) delayCancelTx(cancel context.CancelFunc, cancelChan ch
 	logger.Debug().Msgf("cancelled context for transaction %s", txID)
 }
 
-// TODO: Shutdown method
+func (manager *TxManager) Shutdown() {
+	manager.tickerStopChan <- true
+	// TODO: abort all transactions
+}
