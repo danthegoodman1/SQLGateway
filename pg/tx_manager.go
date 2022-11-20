@@ -69,11 +69,11 @@ func (manager *TxManager) NewTx() (string, error) {
 		ID:         txID,
 		Tx:         pgTx,
 		Expires:    expireTime,
-		CancelChan: make(chan string, 1),
+		CancelChan: make(chan bool, 1),
 		Exited:     false,
 	}
 
-	go manager.delayCancelTx(cancel, tx.CancelChan)
+	go manager.delayCancelTx(ctx, cancel, tx.CancelChan, tx.ID)
 
 	manager.txMu.Lock()
 	defer manager.txMu.Unlock()
@@ -105,7 +105,7 @@ func (manager *TxManager) PopTx(txID string) *Tx {
 
 	delete(manager.txMap, txID)
 
-	tx.CancelChan <- txID
+	tx.CancelChan <- true
 
 	return tx
 }
@@ -144,10 +144,15 @@ func (manager *TxManager) CommitTx(ctx context.Context, txID string) error {
 	return nil
 }
 
-func (manager *TxManager) delayCancelTx(cancel context.CancelFunc, cancelChan chan string) {
-	txID := <-cancelChan
-	cancel()
-	logger.Debug().Msgf("cancelled context for transaction %s", txID)
+func (manager *TxManager) delayCancelTx(ctx context.Context, cancel context.CancelFunc, cancelChan chan bool, txID string) {
+	select {
+	case <-cancelChan:
+		logger.Debug().Msgf("cancelling context for transaction %s", txID)
+		cancel()
+	case <-ctx.Done():
+		logger.Debug().Msgf("context cancelled for transaction %s", txID)
+		break
+	}
 }
 
 func (manager *TxManager) Shutdown() {

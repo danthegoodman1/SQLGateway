@@ -24,7 +24,7 @@ type (
 		PoolConn   *pgxpool.Conn
 		Tx         pgx.Tx
 		Expires    time.Time
-		CancelChan chan string
+		CancelChan chan bool
 		Exited     bool
 	}
 )
