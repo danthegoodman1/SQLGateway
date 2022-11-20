@@ -15,7 +15,7 @@ type (
 		txMu           *sync.Mutex
 		txMap          map[string]*Tx
 		tickerStopChan chan bool
-		ticker         time.Ticker
+		ticker         *time.Ticker
 	}
 )
 
@@ -25,9 +25,23 @@ var (
 
 func NewTxManager() *TxManager {
 	txManager := &TxManager{
-		txMu:  &sync.Mutex{},
-		txMap: map[string]*Tx{},
+		txMu:           &sync.Mutex{},
+		txMap:          map[string]*Tx{},
+		ticker:         time.NewTicker(time.Second * 2),
+		tickerStopChan: make(chan bool, 1),
 	}
+
+	go func(manager *TxManager) {
+		logger.Debug().Msg("starting redis background worker")
+		for {
+			select {
+			case <-manager.ticker.C:
+			// TODO: find timed out transactions to abort
+			case <-manager.tickerStopChan:
+				return
+			}
+		}
+	}(txManager)
 
 	return txManager
 }
@@ -135,3 +149,5 @@ func (manager *TxManager) delayCancelTx(cancel context.CancelFunc, cancelChan ch
 	cancel()
 	logger.Debug().Msgf("cancelled context for transaction %s", txID)
 }
+
+// TODO: Shutdown method

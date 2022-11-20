@@ -61,6 +61,8 @@ func ConnectRedis() error {
 			select {
 			case <-Ticker.C:
 				go updateRedisSD()
+			case <-BGStopChan:
+				return
 			}
 		}
 	}()
