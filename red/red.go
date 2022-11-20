@@ -138,3 +138,23 @@ func GetPeers(ctx context.Context) (map[string]*Peer, error) {
 	}
 	return peers, nil
 }
+
+func Shutdown(ctx context.Context) error {
+	logger.Debug().Msg("shutting down redis client")
+
+	// Stop the background poller
+	BGStopChan <- true
+
+	// Remove the pod from the cluster
+	_, err := RedisClient.HDel(ctx, utils.V_NAMESPACE, utils.POD_NAME).Result()
+	if err != nil {
+		return fmt.Errorf("error in RedisClient.HDel(): %w", err)
+	}
+
+	err = RedisClient.Close()
+	if err != nil {
+		return fmt.Errorf("error in RedisClient.Close(): %w", err)
+	}
+
+	return nil
+}

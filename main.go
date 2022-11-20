@@ -69,4 +69,8 @@ func main() {
 	} else {
 		logger.Info().Msg("successfully shutdown HTTP server")
 	}
+	if utils.REDIS_ADDR != "" {
+		red.Shutdown(ctx)
+		logger.Info().Msg("shut down redis")
+	}
 }
