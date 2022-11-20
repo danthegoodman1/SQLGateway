@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/danthegoodman1/PSQLGateway/pg"
+	"github.com/danthegoodman1/PSQLGateway/red"
 	"os"
 	"os/signal"
 	"syscall"
@@ -22,6 +23,13 @@ func main() {
 	if err := pg.ConnectToDB(); err != nil {
 		logger.Error().Err(err).Msg("error connecting to PG Pool")
 		os.Exit(1)
+	}
+
+	if utils.REDIS_ADDR != "" {
+		if err := red.ConnectRedis(); err != nil {
+			logger.Error().Err(err).Msg("error connecting to Redis")
+			os.Exit(1)
+		}
 	}
 
 	//if utils.K8S_SD {

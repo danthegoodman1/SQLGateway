@@ -1,7 +1,6 @@
 package pg
 
 import (
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"github.com/danthegoodman1/PSQLGateway/utils"
@@ -12,38 +11,33 @@ import (
 type (
 	TxMeta struct {
 		ExpiryTime time.Time
-		NodeID     string
+		PodName    string
 		DSNHash    string
 		ID         string
 		PoolConn   *pgxpool.Conn
 	}
 )
 
-func NewTxMeta(nodeID, dsnHash string) *TxMeta {
+func NewTxMeta() *TxMeta {
 	return &TxMeta{
 		ExpiryTime: time.Now().Add(time.Second * 30),
-		NodeID:     nodeID,
-		DSNHash:    dsnHash,
+		PodName:    utils.POD_NAME,
 		ID:         utils.GenRandomID("tx_"),
 	}
 }
 
-func (tx *TxMeta) MakeKey() (string, error) {
+func (tx *TxMeta) MakeKey() ([]byte, error) {
 	txJSON, err := json.Marshal(tx)
 	if err != nil {
-		return "", fmt.Errorf("error in json.Marshal: %w", err)
+		return nil, fmt.Errorf("error in json.Marshal: %w", err)
 	}
 
-	return base64.StdEncoding.EncodeToString(txJSON), nil
+	return txJSON, nil
 }
 
-func DecodeTxKey(key string) (*TxMeta, error) {
-	txJSON, err := base64.StdEncoding.DecodeString(key)
-	if err != nil {
-		return nil, fmt.Errorf("error in base64.StdEncoding.DecodeString: %w", err)
-	}
+func DecodeTxKey(txJSON []byte) (*TxMeta, error) {
 	var txMeta TxMeta
-	err = json.Unmarshal(txJSON, &txMeta)
+	err := json.Unmarshal(txJSON, &txMeta)
 	if err != nil {
 		return nil, fmt.Errorf("error in json.Unmarshal: %w", err)
 	}

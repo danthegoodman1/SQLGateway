@@ -27,7 +27,7 @@ type (
 		Columns  [][]any        `json:",omitempty"`
 		Rows     [][]any        `json:",omitempty"`
 		Error    *string        `json:",omitempty"`
-		Time     *time.Duration `json:",omitempty"`
+		TimeNS   *time.Duration `json:",omitempty"`
 		CacheHit *bool          `json:",omitempty"`
 		Cached   *bool          `json:",omitempty"`
 	}
@@ -133,20 +133,20 @@ func runQuery(ctx context.Context, q Queryable, exec bool, statement string, par
 	//	res.Cached = utils.Ptr(true)
 	//}
 
-	res.Time = utils.Ptr(time.Since(s))
+	res.TimeNS = utils.Ptr(time.Since(s))
 	return
 }
 
-func ShouldCache(ignoreCache, forceCache *bool) bool {
-	if ignoreCache != nil {
-		return *ignoreCache
-	}
-	if forceCache != nil {
-		return *forceCache
-	}
-
-	return utils.CACHE_DEFAULT
-}
+//func ShouldCache(ignoreCache, forceCache *bool) bool {
+//	if ignoreCache != nil {
+//		return *ignoreCache
+//	}
+//	if forceCache != nil {
+//		return *forceCache
+//	}
+//
+//	return utils.CACHE_DEFAULT
+//}
 
 func CRDBIsSelectOnly(statement string) (selectOnly bool, err error) {
 	ast, err := parser.ParseOne(statement)
