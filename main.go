@@ -78,4 +78,5 @@ func main() {
 	}
 	pg.Manager.Shutdown()
 	logger.Info().Msg("shut down tx manager")
+	os.Exit(0)
 }

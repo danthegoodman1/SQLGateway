@@ -10,7 +10,5 @@ of whether there were rows returned.
 
 ## TODO
 
-- Query handling use transaction if txid exists
-- Endpoints for commit and rollback
 - Register transaction with redis if needed
 - Route transaction request to correct node if not found locally and connected to redis

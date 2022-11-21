@@ -49,17 +49,16 @@ func NewTxManager() *TxManager {
 }
 
 // NewTx starts a new transaction, returning the ID
-func (manager *TxManager) NewTx() (string, error) {
+func (manager *TxManager) NewTx(ctx context.Context) (string, error) {
 	txID := utils.GenRandomID("tx")
 
 	expireTime := time.Now().Add(time.Second * 30)
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
 	poolConn, err := PGPool.Acquire(ctx)
 	if err != nil {
-		cancel()
 		return "", fmt.Errorf("error in PGPool.Acquire: %w", err)
 	}
 
+	txCtx, cancel := context.WithTimeout(context.Background(), time.Second*30)
 	pgTx, err := poolConn.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {
 		cancel()
@@ -76,7 +75,7 @@ func (manager *TxManager) NewTx() (string, error) {
 		PoolMu:     &sync.Mutex{},
 	}
 
-	go manager.delayCancelTx(ctx, cancel, tx.CancelChan, tx.ID)
+	go manager.delayCancelTx(txCtx, cancel, tx.CancelChan, tx.ID)
 
 	manager.txMu.Lock()
 	defer manager.txMu.Unlock()
@@ -183,7 +182,7 @@ func (manager *TxManager) handleExpiredTransactions() {
 	}
 
 	// Expire the IDs
-	logger.Debug().Msgf("Got %d transactions to expire")
+	logger.Debug().Msgf("Got %d transactions to expire", len(expiredTXIDs))
 	for _, txID := range expiredTXIDs {
 		logger.Debug().Msgf("expiring transaction %s", txID)
 		// We will wait forever to try and handle it
@@ -198,5 +197,5 @@ func (manager *TxManager) handleExpiredTransactions() {
 
 func (manager *TxManager) Shutdown() {
 	manager.tickerStopChan <- true
-	// TODO: abort all transactions
+	// We do wait for all HTTP requests to end before doing this
 }

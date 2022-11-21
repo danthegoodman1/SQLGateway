@@ -51,6 +51,9 @@ func StartHTTPServer() *HTTPServer {
 
 	psqlGroup := s.Echo.Group("/psql")
 	psqlGroup.POST("/query", ccHandler(s.PostQuery))
+	psqlGroup.POST("/begin", ccHandler(s.PostBegin))
+	psqlGroup.POST("/commit", ccHandler(s.PostCommit))
+	psqlGroup.POST("/rollback", ccHandler(s.PostRollback))
 
 	s.Echo.Listener = listener
 	go func() {

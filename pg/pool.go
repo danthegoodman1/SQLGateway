@@ -42,14 +42,36 @@ var (
 	ErrEndTx = utils.PermError("end tx")
 )
 
-func Query(ctx context.Context, pool *pgxpool.Pool, queries []*QueryReq) ([]*QueryRes, error) {
-	res := make([]*QueryRes, len(queries))
+func Query(ctx context.Context, pool *pgxpool.Pool, queries []*QueryReq, txID *string) ([]*QueryRes, error) {
+	logger := zerolog.Ctx(ctx)
 
 	//if query.IgnoreCache == nil || *query.IgnoreCache == false {
 	//	// TODO: Check cache
 	//	res.CacheHit = utils.Ptr(true)
 	//	// Return if cache hit
 	//}
+
+	if txID != nil {
+		logger.Debug().Msg("transaction detected, handling queries in transaction")
+
+		tx := Manager.GetTx(*txID)
+		if tx == nil {
+			logger.Debug().Msgf("transaction %s not found", *txID)
+			return nil, ErrTxNotFound
+		}
+
+		res, err := tx.RunQueries(ctx, queries)
+		if err != nil {
+			logger.Debug().Msg("error found when running queries in transaction, rolling back")
+			err = Manager.RollbackTx(ctx, *txID)
+			if err != nil {
+				return res, fmt.Errorf("error in Manager.RollbackTx: %w", err)
+			}
+		}
+		return res, nil
+	}
+
+	res := make([]*QueryRes, len(queries))
 
 	var queryErr error
 	// If single item, don't do in tx
