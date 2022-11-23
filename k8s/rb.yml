@@ -8,4 +8,4 @@ roleRef:
   name: get-pods
 subjects:
   - kind: ServiceAccount
-    name: psqlgateway
+    name: SQLGateway

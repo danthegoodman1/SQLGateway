@@ -1,4 +1,4 @@
-module github.com/danthegoodman1/PSQLGateway
+module github.com/danthegoodman1/SQLGateway
 
 go 1.18
 

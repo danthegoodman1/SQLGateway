@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/cockroachdb/cockroachdb-parser/pkg/sql/parser"
-	"github.com/danthegoodman1/PSQLGateway/utils"
+	"github.com/danthegoodman1/SQLGateway/utils"
 	"github.com/jackc/pgconn"
 	"github.com/jackc/pgx/v4"
 	"github.com/jackc/pgx/v4/pgxpool"

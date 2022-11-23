@@ -1,4 +1,4 @@
-# PSQLGateway
+# SQLGateway
 
 ## /query endpoint
 

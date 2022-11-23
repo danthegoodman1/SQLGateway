@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/danthegoodman1/PSQLGateway/gologger"
-	"github.com/danthegoodman1/PSQLGateway/utils"
+	"github.com/danthegoodman1/SQLGateway/gologger"
+	"github.com/danthegoodman1/SQLGateway/utils"
 	"github.com/jackc/pgx/v4/pgxpool"
 )
 

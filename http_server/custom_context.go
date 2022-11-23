@@ -5,7 +5,7 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/danthegoodman1/PSQLGateway/gologger"
+	"github.com/danthegoodman1/SQLGateway/gologger"
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 	"github.com/rs/zerolog"

@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/danthegoodman1/PSQLGateway/utils"
+	"github.com/danthegoodman1/SQLGateway/utils"
 	"github.com/jackc/pgx/v4"
 	"sync"
 	"time"

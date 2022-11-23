@@ -3,22 +3,22 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/danthegoodman1/PSQLGateway/pg"
-	"github.com/danthegoodman1/PSQLGateway/red"
+	"github.com/danthegoodman1/SQLGateway/pg"
+	"github.com/danthegoodman1/SQLGateway/red"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
-	"github.com/danthegoodman1/PSQLGateway/gologger"
-	"github.com/danthegoodman1/PSQLGateway/http_server"
-	"github.com/danthegoodman1/PSQLGateway/utils"
+	"github.com/danthegoodman1/SQLGateway/gologger"
+	"github.com/danthegoodman1/SQLGateway/http_server"
+	"github.com/danthegoodman1/SQLGateway/utils"
 )
 
 var logger = gologger.NewLogger()
 
 func main() {
-	logger.Info().Msg("starting PSQLGateway")
+	logger.Info().Msg("starting SQLGateway")
 
 	if err := pg.ConnectToDB(); err != nil {
 		logger.Error().Err(err).Msg("error connecting to PG Pool")
@@ -33,7 +33,7 @@ func main() {
 	}
 
 	//if utils.K8S_SD {
-	//	k, err := ksd.NewPodKSD("default", "app=psqlgateway", func(obj *v1.Pod) {
+	//	k, err := ksd.NewPodKSD("default", "app=SQLGateway", func(obj *v1.Pod) {
 	//		//fmt.Println("ADD EVENT: %+v", obj)
 	//	}, func(obj *v1.Pod) {
 	//		//fmt.Println("DELETE EVENT: %+v", obj)

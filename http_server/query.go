@@ -3,7 +3,7 @@ package http_server
 import (
 	"context"
 	"errors"
-	"github.com/danthegoodman1/PSQLGateway/pg"
+	"github.com/danthegoodman1/SQLGateway/pg"
 	"net/http"
 	"time"
 )

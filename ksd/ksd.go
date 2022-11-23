@@ -2,7 +2,7 @@ package ksd
 
 import (
 	"fmt"
-	"github.com/danthegoodman1/PSQLGateway/gologger"
+	"github.com/danthegoodman1/SQLGateway/gologger"
 	v1 "k8s.io/api/core/v1"
 	"time"
 
