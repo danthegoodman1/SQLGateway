@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/danthegoodman1/SQLGateway/red"
 	"github.com/danthegoodman1/SQLGateway/utils"
 	"github.com/jackc/pgx/v4"
 	"sync"
@@ -22,7 +23,7 @@ type (
 var (
 	ErrTxNotFound = errors.New("transaction not found")
 
-	Manager = NewTxManager()
+	Manager *TxManager
 )
 
 func NewTxManager() *TxManager {
@@ -73,6 +74,18 @@ func (manager *TxManager) NewTx(ctx context.Context) (string, error) {
 		CancelChan: make(chan bool, 1),
 		Exited:     false,
 		PoolMu:     &sync.Mutex{},
+	}
+
+	if red.RedisClient != nil {
+		err = red.SetTransaction(ctx, &red.TransactionMeta{
+			TxID:   txID,
+			PodID:  utils.POD_NAME,
+			Expiry: expireTime,
+		})
+		if err != nil {
+			cancel()
+			return "", fmt.Errorf("error in red.SetTransaction: %w", err)
+		}
 	}
 
 	go manager.delayCancelTx(txCtx, cancel, tx.CancelChan, tx.ID)
@@ -188,7 +201,7 @@ func (manager *TxManager) handleExpiredTransactions() {
 		// We will wait forever to try and handle it
 		err := manager.RollbackTx(context.Background(), txID)
 		if err != nil {
-			logger.Error().Err(err).Msgf("error rolling back transaction", txID)
+			logger.Error().Err(err).Msgf("error rolling back transaction %s", txID)
 		} else {
 			logger.Debug().Msgf("expired transaction %s", txID)
 		}

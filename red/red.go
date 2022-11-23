@@ -3,6 +3,7 @@ package red
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"github.com/danthegoodman1/SQLGateway/gologger"
 	"github.com/danthegoodman1/SQLGateway/utils"
@@ -16,12 +17,20 @@ var (
 	BGStopChan  = make(chan bool)
 	Ticker      = time.NewTicker(time.Second * 5)
 	logger      = gologger.NewLogger()
+
+	ErrTxAlreadyExists = errors.New("transaction already exists")
 )
 
 type (
 	Peer struct {
 		PodName    string
 		LastUpdate time.Time
+	}
+
+	TransactionMeta struct {
+		TxID   string
+		PodID  string
+		Expiry time.Time
 	}
 )
 
@@ -111,12 +120,12 @@ func updateRedisSD() {
 		return
 	}
 	since := time.Since(s)
-	logger.Debug().Int64("updateTimeNS", since.Nanoseconds()).Msgf("updated Redis SD in %s", since)
+	logger.Trace().Int64("updateTimeNS", since.Nanoseconds()).Msgf("updated Redis SD in %s", since)
 }
 
 func GetPeers(ctx context.Context) (map[string]*Peer, error) {
 	logger := zerolog.Ctx(ctx)
-	logger.Debug().Msg("listing peers")
+	logger.Trace().Msg("listing peers")
 
 	ctx, cancel := context.WithTimeout(ctx, time.Second*5)
 	defer cancel()
@@ -128,7 +137,7 @@ func GetPeers(ctx context.Context) (map[string]*Peer, error) {
 	}
 
 	since := time.Since(s)
-	logger.Debug().Int64("updateTimeNS", since.Nanoseconds()).Msgf("got peers from redis in %s", since)
+	logger.Trace().Int64("updateTimeNS", since.Nanoseconds()).Msgf("got peers from redis in %s", since)
 
 	peers := make(map[string]*Peer, 0)
 	for podName, peerJSON := range rHash {
@@ -141,7 +150,47 @@ func GetPeers(ctx context.Context) (map[string]*Peer, error) {
 	return peers, nil
 }
 
-func SetTransaction(txID, nodeID string) {}
+func SetTransaction(ctx context.Context, txMeta *TransactionMeta) error {
+	logger := zerolog.Ctx(ctx)
+	logger.UpdateContext(func(c zerolog.Context) zerolog.Context {
+		return c.Str("txID", txMeta.TxID)
+	})
+	logger.Debug().Msg("setting transaction in redis")
+	s := time.Now()
+
+	txMetaBytes, err := json.Marshal(txMeta)
+	if err != nil {
+		return fmt.Errorf("error in json.Marshal: %w", err)
+	}
+
+	set, err := RedisClient.SetNX(ctx, txMeta.TxID, string(txMetaBytes), txMeta.Expiry.Sub(time.Now())).Result()
+	if err != nil {
+		return fmt.Errorf("error in RedisClient.SetNX: %w", err)
+	}
+	if !set {
+		return ErrTxAlreadyExists
+	}
+	logger.Trace().Msgf("set transaction in redis in %s", time.Since(s))
+	return nil
+}
+
+func GetTransaction(ctx context.Context, txID string) (txMeta *TransactionMeta, err error) {
+	logger := zerolog.Ctx(ctx)
+	logger.UpdateContext(func(c zerolog.Context) zerolog.Context {
+		return c.Str("txID", txID)
+	})
+	logger.Debug().Msg("getting transaction from redis")
+	txString, err := RedisClient.Get(ctx, txID).Result()
+	if err != nil {
+		return nil, fmt.Errorf("error in RedisClient.Get: %w", err)
+	}
+
+	err = json.Unmarshal([]byte(txString), &txMeta)
+	if err != nil {
+		return nil, fmt.Errorf("error in json.Unmarshal: %w", err)
+	}
+	return
+}
 
 func Shutdown(ctx context.Context) error {
 	logger.Debug().Msg("shutting down redis client")

@@ -5,7 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"github.com/cockroachdb/cockroachdb-parser/pkg/sql/parser"
+	"github.com/danthegoodman1/SQLGateway/red"
 	"github.com/danthegoodman1/SQLGateway/utils"
+	"github.com/go-redis/redis/v9"
 	"github.com/jackc/pgconn"
 	"github.com/jackc/pgx/v4"
 	"github.com/jackc/pgx/v4/pgxpool"
@@ -55,7 +57,19 @@ func Query(ctx context.Context, pool *pgxpool.Pool, queries []*QueryReq, txID *s
 		logger.Debug().Msg("transaction detected, handling queries in transaction")
 
 		tx := Manager.GetTx(*txID)
-		if tx == nil {
+		if tx == nil && red.RedisClient != nil {
+			// Check for remote transaction
+			txMeta, err := red.GetTransaction(ctx, *txID)
+			if errors.Is(err, redis.Nil) {
+				return nil, ErrTxNotFound
+			}
+			if err != nil {
+				return nil, fmt.Errorf("error in red.GetTransaction: %w", err)
+			}
+
+			// TODO: Proxy to other node
+
+		} else if tx == nil {
 			logger.Debug().Msgf("transaction %s not found", *txID)
 			return nil, ErrTxNotFound
 		}

@@ -48,6 +48,8 @@ func main() {
 	//	defer k.Stop()
 	//}
 
+	pg.Manager = pg.NewTxManager()
+
 	httpServer := http_server.StartHTTPServer()
 
 	c := make(chan os.Signal, 1)
