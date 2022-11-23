@@ -108,8 +108,8 @@ func (manager *TxManager) GetTx(txID string) *Tx {
 	return tx
 }
 
-// PopTx fetches the transaction and removes it from the manager, also sending a signal to cancel the context
-func (manager *TxManager) PopTx(txID string) *Tx {
+// DeleteTx fetches the transaction and removes it from the manager, also sending a signal to cancel the context
+func (manager *TxManager) DeleteTx(txID string) error {
 	manager.txMu.Lock()
 	defer manager.txMu.Unlock()
 
@@ -122,12 +122,14 @@ func (manager *TxManager) PopTx(txID string) *Tx {
 
 	tx.CancelChan <- true
 
-	return tx
+	// TODO: Delete from redis
+
+	return nil
 }
 
 // RollbackTx rolls back the transaction and returns the connection to the pool
 func (manager *TxManager) RollbackTx(ctx context.Context, txID string) error {
-	tx := manager.PopTx(txID)
+	tx := manager.GetTx(txID)
 	if tx == nil {
 		return ErrTxNotFound
 	}
@@ -142,12 +144,17 @@ func (manager *TxManager) RollbackTx(ctx context.Context, txID string) error {
 		return fmt.Errorf("error in Tx.Rollback: %w", err)
 	}
 
+	err = manager.DeleteTx(txID)
+	if err != nil {
+		return fmt.Errorf("error in manager.DeleteTx: %w", err)
+	}
+
 	return nil
 }
 
 // CommitTx commits the transaction and returns the connection to the pool
 func (manager *TxManager) CommitTx(ctx context.Context, txID string) error {
-	tx := manager.PopTx(txID)
+	tx := manager.GetTx(txID)
 	if tx == nil {
 		return ErrTxNotFound
 	}
@@ -160,6 +167,10 @@ func (manager *TxManager) CommitTx(ctx context.Context, txID string) error {
 
 	if err != nil {
 		return fmt.Errorf("error in Tx.Commit: %w", err)
+	}
+
+	if err != nil {
+		return fmt.Errorf("error in manager.DeleteTx: %w", err)
 	}
 
 	return nil
@@ -211,4 +222,5 @@ func (manager *TxManager) handleExpiredTransactions() {
 func (manager *TxManager) Shutdown() {
 	manager.tickerStopChan <- true
 	// We do wait for all HTTP requests to end before doing this
+	// TODO: Remove all transactions from redis in case this gets the same name
 }

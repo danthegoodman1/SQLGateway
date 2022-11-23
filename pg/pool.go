@@ -41,7 +41,8 @@ type (
 )
 
 var (
-	ErrEndTx = utils.PermError("end tx")
+	ErrEndTx  = utils.PermError("end tx")
+	ErrLostTx = errors.New("lost transaction on local, maybe the node restarted with the same name")
 )
 
 func Query(ctx context.Context, pool *pgxpool.Pool, queries []*QueryReq, txID *string) ([]*QueryRes, error) {
@@ -65,6 +66,11 @@ func Query(ctx context.Context, pool *pgxpool.Pool, queries []*QueryReq, txID *s
 			}
 			if err != nil {
 				return nil, fmt.Errorf("error in red.GetTransaction: %w", err)
+			}
+
+			if txMeta.PodID == utils.POD_NAME {
+				// The only case would be if this node restarted but maintained the same name, without removing transactions from redis
+				return nil, ErrLostTx
 			}
 
 			// TODO: Proxy to other node
