@@ -13,7 +13,7 @@ var (
 	// V_NAMESPACE Virtual namespace for redis hash map name
 	V_NAMESPACE = os.Getenv("V_NAMESPACE")
 
-	POD_NAME      = os.Getenv("POD_NAME")
-	POD_NAMESPACE = os.Getenv("POD_NAMESPACE")
-	BASE_DOMAIN   = os.Getenv("BASE_DOMAIN")
+	POD_NAME        = os.Getenv("POD_NAME")
+	POD_BASE_DOMAIN = os.Getenv("POD_BASE_DOMAIN")
+	BASE_DOMAIN     = os.Getenv("BASE_DOMAIN")
 )

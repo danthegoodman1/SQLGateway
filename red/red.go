@@ -141,6 +141,8 @@ func GetPeers(ctx context.Context) (map[string]*Peer, error) {
 	return peers, nil
 }
 
+func SetTransaction(txID, nodeID string) {}
+
 func Shutdown(ctx context.Context) error {
 	logger.Debug().Msg("shutting down redis client")
 
