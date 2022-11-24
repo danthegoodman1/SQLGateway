@@ -1,9 +1,13 @@
 package http_server
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"github.com/danthegoodman1/SQLGateway/pg"
+	"github.com/rs/zerolog"
+	"io"
 	"net/http"
 	"time"
 )
@@ -28,7 +32,7 @@ func (s *HTTPServer) PostQuery(c *CustomContext) error {
 	if err := ValidateRequest(c, &body); err != nil {
 		return c.String(http.StatusBadRequest, err.Error())
 	}
-
+	defer c.Request().Body.Close()
 	//logger := zerolog.Ctx(c.Request().Context())
 	//logger.Info().Msg(c.Request().URL.Path)
 
@@ -36,9 +40,51 @@ func (s *HTTPServer) PostQuery(c *CustomContext) error {
 		Queries: make([]*pg.QueryRes, len(body.Queries)),
 	}
 
-	queryRes, err := pg.Query(c.Request().Context(), pg.PGPool, body.Queries, body.TxID)
+	logger := zerolog.Ctx(c.Request().Context())
+	if body.TxID != nil {
+		logger.UpdateContext(func(c zerolog.Context) zerolog.Context {
+			return c.Str("txID", *body.TxID)
+		})
+	}
+
+	queryRes, remotePodURL, err := pg.Query(c.Request().Context(), pg.PGPool, body.Queries, body.TxID)
 	if errors.Is(err, pg.ErrTxNotFound) {
 		return c.String(http.StatusNotFound, "transaction not found, did it timeout?")
+	}
+	if errors.Is(err, pg.ErrTxOnRemotePod) {
+		// Forward the request to the remote pod
+		logger.UpdateContext(func(c zerolog.Context) zerolog.Context {
+			return c.Str("remotePod", remotePodURL)
+		})
+		logger.Debug().Msg("remote transaction found, forwarding")
+
+		bodyJSON, err := json.Marshal(body)
+		if err != nil {
+			return c.InternalError(err, "failed to marshal req body to JSON")
+		}
+
+		ctx, cancel := context.WithTimeout(c.Request().Context(), time.Second*30)
+		defer cancel()
+
+		req, err := http.NewRequestWithContext(ctx, "POST", remotePodURL, bytes.NewReader(bodyJSON))
+		if err != nil {
+			return c.InternalError(err, "error making http request for remote pod")
+		}
+
+		res, err := http.DefaultClient.Do(req)
+		if err != nil {
+			return c.InternalError(err, "error doing request to remote pod")
+		}
+
+		resBodyBytes, err := io.ReadAll(res.Body)
+		if err != nil {
+			return c.InternalError(err, "error reading body bytes from remote pod response")
+		}
+
+		if res.StatusCode != 200 {
+			return c.String(res.StatusCode, string(resBodyBytes))
+		}
+		return c.JSONBlob(http.StatusOK, resBodyBytes)
 	}
 	if err != nil {
 		return c.InternalError(err, "error handling query")
@@ -73,6 +119,7 @@ func (s *HTTPServer) PostCommit(c *CustomContext) error {
 	if err := ValidateRequest(c, &body); err != nil {
 		return c.String(http.StatusBadRequest, err.Error())
 	}
+	defer c.Request().Body.Close()
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
 	defer cancel()
@@ -93,6 +140,7 @@ func (s *HTTPServer) PostRollback(c *CustomContext) error {
 	if err := ValidateRequest(c, &body); err != nil {
 		return c.String(http.StatusBadRequest, err.Error())
 	}
+	defer c.Request().Body.Close()
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
 	defer cancel()

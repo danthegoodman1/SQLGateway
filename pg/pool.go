@@ -41,12 +41,15 @@ type (
 )
 
 var (
-	ErrEndTx  = utils.PermError("end tx")
-	ErrLostTx = errors.New("lost transaction on local, maybe the node restarted with the same name")
+	ErrEndTx         = utils.PermError("end tx")
+	ErrLostTx        = errors.New("lost transaction on local, maybe the node restarted with the same name")
+	ErrTxOnRemotePod = errors.New("transaction on remote pod")
 )
 
-func Query(ctx context.Context, pool *pgxpool.Pool, queries []*QueryReq, txID *string) ([]*QueryRes, error) {
+func Query(ctx context.Context, pool *pgxpool.Pool, queries []*QueryReq, txID *string) ([]*QueryRes, string, error) {
 	logger := zerolog.Ctx(ctx)
+	ctx, cancel := context.WithTimeout(ctx, time.Second*30)
+	defer cancel()
 
 	//if query.IgnoreCache == nil || *query.IgnoreCache == false {
 	//	// TODO: Check cache
@@ -62,22 +65,23 @@ func Query(ctx context.Context, pool *pgxpool.Pool, queries []*QueryReq, txID *s
 			// Check for remote transaction
 			txMeta, err := red.GetTransaction(ctx, *txID)
 			if errors.Is(err, redis.Nil) {
-				return nil, ErrTxNotFound
+				return nil, "", ErrTxNotFound
 			}
 			if err != nil {
-				return nil, fmt.Errorf("error in red.GetTransaction: %w", err)
+				return nil, "", fmt.Errorf("error in red.GetTransaction: %w", err)
 			}
 
 			if txMeta.PodID == utils.POD_NAME {
 				// The only case would be if this node restarted but maintained the same name, without removing transactions from redis
-				return nil, ErrLostTx
+				return nil, "", ErrLostTx
 			}
 
-			// TODO: Proxy to other node
+			// This is a hack to avoid import cycles right now
+			return nil, fmt.Sprintf("http://%s.%s:%s", txMeta.PodID, utils.POD_BASE_DOMAIN, utils.HTTP_PORT), ErrTxOnRemotePod
 
 		} else if tx == nil {
 			logger.Debug().Msgf("transaction %s not found", *txID)
-			return nil, ErrTxNotFound
+			return nil, "", ErrTxNotFound
 		}
 
 		res, err := tx.RunQueries(ctx, queries)
@@ -85,10 +89,10 @@ func Query(ctx context.Context, pool *pgxpool.Pool, queries []*QueryReq, txID *s
 			logger.Debug().Msg("error found when running queries in transaction, rolling back")
 			err = Manager.RollbackTx(ctx, *txID)
 			if err != nil {
-				return res, fmt.Errorf("error in Manager.RollbackTx: %w", err)
+				return res, "", fmt.Errorf("error in Manager.RollbackTx: %w", err)
 			}
 		}
-		return res, nil
+		return res, "", nil
 	}
 
 	res := make([]*QueryRes, len(queries))
@@ -118,10 +122,10 @@ func Query(ctx context.Context, pool *pgxpool.Pool, queries []*QueryReq, txID *s
 	}
 
 	if queryErr != nil && !errors.Is(queryErr, ErrEndTx) {
-		return nil, fmt.Errorf("error in transaction execution: %w", queryErr)
+		return nil, "", fmt.Errorf("error in transaction execution: %w", queryErr)
 	}
 
-	return res, nil
+	return res, "", nil
 }
 
 func runQuery(ctx context.Context, q Queryable, exec bool, statement string, params []any) (res *QueryRes) {

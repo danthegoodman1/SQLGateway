@@ -15,5 +15,6 @@ var (
 
 	POD_NAME        = os.Getenv("POD_NAME")
 	POD_BASE_DOMAIN = os.Getenv("POD_BASE_DOMAIN")
-	BASE_DOMAIN     = os.Getenv("BASE_DOMAIN")
+
+	HTTP_PORT = GetEnvOrDefault("HTTP_PORT", "8080")
 )
