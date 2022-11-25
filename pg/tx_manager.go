@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/danthegoodman1/SQLGateway/red"
 	"github.com/danthegoodman1/SQLGateway/utils"
+	"github.com/go-redis/redis/v9"
 	"github.com/jackc/pgx/v4"
 	"sync"
 	"time"
@@ -131,7 +132,24 @@ func (manager *TxManager) DeleteTx(txID string) error {
 // RollbackTx rolls back the transaction and returns the connection to the pool
 func (manager *TxManager) RollbackTx(ctx context.Context, txID string) error {
 	tx := manager.GetTx(txID)
-	if tx == nil {
+	if tx == nil && red.RedisClient != nil {
+		// Check for remote transaction
+		txMeta, err := red.GetTransaction(ctx, txID)
+		if errors.Is(err, redis.Nil) {
+			return ErrTxNotFound
+		}
+		if err != nil {
+			return fmt.Errorf("error in red.GetTransaction: %w", err)
+		}
+
+		if txMeta.PodID == utils.POD_NAME {
+			// The only case would be if this node restarted but maintained the same name, without removing transactions from redis
+			return ErrTxNotFoundLocal
+		}
+
+		// This is a hack to avoid import cycles right now
+		return nil
+	} else if tx == nil {
 		return ErrTxNotFound
 	}
 
@@ -156,7 +174,23 @@ func (manager *TxManager) RollbackTx(ctx context.Context, txID string) error {
 // CommitTx commits the transaction and returns the connection to the pool
 func (manager *TxManager) CommitTx(ctx context.Context, txID string) error {
 	tx := manager.GetTx(txID)
-	if tx == nil {
+	if tx == nil && red.RedisClient != nil {
+		// Check for remote transaction
+		txMeta, err := red.GetTransaction(ctx, txID)
+		if errors.Is(err, redis.Nil) {
+			return ErrTxNotFound
+		}
+		if err != nil {
+			return fmt.Errorf("error in red.GetTransaction: %w", err)
+		}
+
+		if txMeta.PodID == utils.POD_NAME {
+			// The only case would be if this node restarted but maintained the same name, without removing transactions from redis
+			return ErrTxNotFoundLocal
+		}
+
+		return nil
+	} else if tx == nil {
 		return ErrTxNotFound
 	}
 
@@ -170,6 +204,7 @@ func (manager *TxManager) CommitTx(ctx context.Context, txID string) error {
 		return fmt.Errorf("error in Tx.Commit: %w", err)
 	}
 
+	err = manager.DeleteTx(txID)
 	if err != nil {
 		return fmt.Errorf("error in manager.DeleteTx: %w", err)
 	}
