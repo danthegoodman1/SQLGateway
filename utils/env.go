@@ -17,6 +17,8 @@ var (
 	POD_NAME = os.Getenv("POD_NAME")
 	// this pod can be reached at url: {POD_NAME}{POD_BASE_DOMAIN}
 	POD_BASE_DOMAIN = os.Getenv("POD_BASE_DOMAIN")
+	// overrides {POD_NAME}{POD_BASE_DOMAIN} to advertise {POD_URL}
+	POD_URL = os.Getenv("POD_URL")
 
 	HTTP_PORT = GetEnvOrDefault("HTTP_PORT", "8080")
 )
