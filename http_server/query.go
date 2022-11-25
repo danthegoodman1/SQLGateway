@@ -76,7 +76,13 @@ func (s *HTTPServer) PostCommit(c *CustomContext) error {
 		if errors.Is(err.Err, context.DeadlineExceeded) {
 			return c.String(http.StatusRequestTimeout, "timed out waiting for free pool connection")
 		}
-		if err != nil {
+		if errors.Is(err.Err, pg.ErrTxNotFound) {
+			return c.String(http.StatusNotFound, "transaction not found")
+		}
+		if errors.Is(err.Err, pg.ErrTxNotFoundLocal) {
+			return c.String(http.StatusNotFound, err.Err.Error())
+		}
+		if err.Err != nil {
 			return c.InternalError(err.Err, "error committing transaction")
 		}
 		if err.Remote {
@@ -102,7 +108,13 @@ func (s *HTTPServer) PostRollback(c *CustomContext) error {
 		if errors.Is(err.Err, context.DeadlineExceeded) {
 			return c.String(http.StatusRequestTimeout, "timed out waiting for free pool connection")
 		}
-		if err != nil {
+		if errors.Is(err.Err, pg.ErrTxNotFound) {
+			return c.String(http.StatusNotFound, "transaction not found")
+		}
+		if errors.Is(err.Err, pg.ErrTxNotFoundLocal) {
+			return c.String(http.StatusNotFound, err.Err.Error())
+		}
+		if err.Err != nil {
 			return c.InternalError(err.Err, "error rolling back transaction")
 		}
 		if err.Remote {
