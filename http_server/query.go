@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"github.com/danthegoodman1/SQLGateway/pg"
 	"github.com/rs/zerolog"
 	"io"
@@ -51,6 +52,9 @@ func (s *HTTPServer) PostQuery(c *CustomContext) error {
 	if errors.Is(err, pg.ErrTxNotFound) {
 		return c.String(http.StatusNotFound, "transaction not found, did it timeout?")
 	}
+	if errors.Is(err, pg.ErrTxNotFoundLocal) {
+		return c.String(http.StatusNotFound, err.Error())
+	}
 	if errors.Is(err, pg.ErrTxOnRemotePod) {
 		// Forward the request to the remote pod
 		logger.UpdateContext(func(c zerolog.Context) zerolog.Context {
@@ -66,10 +70,11 @@ func (s *HTTPServer) PostQuery(c *CustomContext) error {
 		ctx, cancel := context.WithTimeout(c.Request().Context(), time.Second*30)
 		defer cancel()
 
-		req, err := http.NewRequestWithContext(ctx, "POST", remotePodURL, bytes.NewReader(bodyJSON))
+		req, err := http.NewRequestWithContext(ctx, "POST", fmt.Sprintf("http://%s/psql/query", remotePodURL), bytes.NewReader(bodyJSON))
 		if err != nil {
 			return c.InternalError(err, "error making http request for remote pod")
 		}
+		req.Header.Set("content-type", "application/json")
 
 		res, err := http.DefaultClient.Do(req)
 		if err != nil {

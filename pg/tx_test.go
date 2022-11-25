@@ -12,6 +12,7 @@ func TestTransactionStorage(t *testing.T) {
 		TxID:   "test",
 		PodID:  "testpod",
 		Expiry: time.Now().Add(time.Second * 10),
+		PodURL: "localhost:8080",
 	}
 
 	err := red.SetTransaction(context.Background(), txMeta)

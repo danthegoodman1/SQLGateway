@@ -81,6 +81,7 @@ func (manager *TxManager) NewTx(ctx context.Context) (string, error) {
 			TxID:   txID,
 			PodID:  utils.POD_NAME,
 			Expiry: expireTime,
+			PodURL: utils.POD_NAME + utils.POD_BASE_DOMAIN,
 		})
 		if err != nil {
 			cancel()

@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/cockroachdb/cockroachdb-parser/pkg/sql/parser"
 	"github.com/danthegoodman1/SQLGateway/red"
 	"github.com/danthegoodman1/SQLGateway/utils"
 	"github.com/go-redis/redis/v9"
@@ -41,9 +40,9 @@ type (
 )
 
 var (
-	ErrEndTx         = utils.PermError("end tx")
-	ErrLostTx        = errors.New("lost transaction on local, maybe the node restarted with the same name")
-	ErrTxOnRemotePod = errors.New("transaction on remote pod")
+	ErrEndTx           = utils.PermError("end tx")
+	ErrTxNotFoundLocal = errors.New("transaction not found on local pod, maybe the node restarted with the same name, or the transaction aborted")
+	ErrTxOnRemotePod   = errors.New("transaction on remote pod")
 )
 
 func Query(ctx context.Context, pool *pgxpool.Pool, queries []*QueryReq, txID *string) ([]*QueryRes, string, error) {
@@ -73,11 +72,11 @@ func Query(ctx context.Context, pool *pgxpool.Pool, queries []*QueryReq, txID *s
 
 			if txMeta.PodID == utils.POD_NAME {
 				// The only case would be if this node restarted but maintained the same name, without removing transactions from redis
-				return nil, "", ErrLostTx
+				return nil, "", ErrTxNotFoundLocal
 			}
 
 			// This is a hack to avoid import cycles right now
-			return nil, fmt.Sprintf("http://%s.%s:%s", txMeta.PodID, utils.POD_BASE_DOMAIN, utils.HTTP_PORT), ErrTxOnRemotePod
+			return nil, fmt.Sprintf(txMeta.PodURL), ErrTxOnRemotePod
 
 		} else if tx == nil {
 			logger.Debug().Msgf("transaction %s not found", *txID)
@@ -194,11 +193,11 @@ func runQuery(ctx context.Context, q Queryable, exec bool, statement string, par
 //	return utils.CACHE_DEFAULT
 //}
 
-func CRDBIsSelectOnly(statement string) (selectOnly bool, err error) {
-	ast, err := parser.ParseOne(statement)
-	if err != nil {
-		return false, fmt.Errorf("error in parser.ParseOne: %w", err)
-	}
-
-	return ast.AST.StatementTag() == "SELECT", nil
-}
+//func CRDBIsSelectOnly(statement string) (selectOnly bool, err error) {
+//	ast, err := parser.ParseOne(statement)
+//	if err != nil {
+//		return false, fmt.Errorf("error in parser.ParseOne: %w", err)
+//	}
+//
+//	return ast.AST.StatementTag() == "SELECT", nil
+//}

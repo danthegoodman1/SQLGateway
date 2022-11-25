@@ -30,6 +30,7 @@ type (
 	TransactionMeta struct {
 		TxID   string
 		PodID  string
+		PodURL string
 		Expiry time.Time
 	}
 )
