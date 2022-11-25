@@ -324,3 +324,10 @@ func VersionToInt(v string) (int64, error) {
 	}
 	return iParts[0]*10_000*10_000 + iParts[1]*10_000 + iParts[2], nil
 }
+
+func GetHTTPPrefix() string {
+	if POD_HTTPS {
+		return "https"
+	}
+	return "http"
+}

@@ -182,7 +182,7 @@ func (manager *TxManager) RollbackTx(ctx context.Context, txID string) *Distribu
 		ctx, cancel := context.WithTimeout(ctx, time.Second*30)
 		defer cancel()
 
-		req, err := http.NewRequestWithContext(ctx, "POST", fmt.Sprintf("http://%s/psql/rollback", txMeta.PodURL), bytes.NewReader(bodyJSON))
+		req, err := http.NewRequestWithContext(ctx, "POST", fmt.Sprintf("%s://%s/psql/rollback", utils.GetHTTPPrefix(), txMeta.PodURL), bytes.NewReader(bodyJSON))
 		if err != nil {
 			return &DistributedError{Err: fmt.Errorf("error making http request for remote pod: %w", err)}
 		}
@@ -266,7 +266,7 @@ func (manager *TxManager) CommitTx(ctx context.Context, txID string) *Distribute
 		ctx, cancel := context.WithTimeout(ctx, time.Second*30)
 		defer cancel()
 
-		req, err := http.NewRequestWithContext(ctx, "POST", fmt.Sprintf("http://%s/psql/commit", txMeta.PodURL), bytes.NewReader(bodyJSON))
+		req, err := http.NewRequestWithContext(ctx, "POST", fmt.Sprintf("%s://%s/psql/commit", utils.GetHTTPPrefix(), txMeta.PodURL), bytes.NewReader(bodyJSON))
 		if err != nil {
 			return &DistributedError{Err: fmt.Errorf("error making http request for remote pod: %w", err)}
 		}

@@ -66,7 +66,6 @@ type (
 var (
 	ErrEndTx           = utils.PermError("end tx")
 	ErrTxNotFoundLocal = errors.New("transaction not found on local pod, maybe the node restarted with the same name, or the transaction aborted")
-	ErrTxOnRemotePod   = errors.New("transaction on remote pod")
 )
 
 func Query(ctx context.Context, pool *pgxpool.Pool, queries []*QueryReq, txID *string) (*QueryResponse, *DistributedError) {
@@ -124,7 +123,7 @@ func Query(ctx context.Context, pool *pgxpool.Pool, queries []*QueryReq, txID *s
 			ctx, cancel := context.WithTimeout(ctx, time.Second*30)
 			defer cancel()
 
-			req, err := http.NewRequestWithContext(ctx, "POST", fmt.Sprintf("http://%s/psql/query", txMeta.PodURL), bytes.NewReader(bodyJSON))
+			req, err := http.NewRequestWithContext(ctx, "POST", fmt.Sprintf("%s://%s/psql/query", utils.GetHTTPPrefix(), txMeta.PodURL), bytes.NewReader(bodyJSON))
 			if err != nil {
 				return nil, &DistributedError{Err: fmt.Errorf("error making http request for remote pod: %w", err)}
 			}

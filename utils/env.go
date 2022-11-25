@@ -21,4 +21,7 @@ var (
 	POD_URL = os.Getenv("POD_URL")
 
 	HTTP_PORT = GetEnvOrDefault("HTTP_PORT", "8080")
+
+	// Whether to use https for inter-pod communication, defaults to false
+	POD_HTTPS = os.Getenv("POD_HTTPS") == "1"
 )
