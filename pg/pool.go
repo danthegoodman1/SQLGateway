@@ -109,7 +109,7 @@ func Query(ctx context.Context, pool *pgxpool.Pool, queries []*QueryReq, txID *s
 			}
 
 			logger.UpdateContext(func(c zerolog.Context) zerolog.Context {
-				return c.Str("remotePod", txMeta.PodURL)
+				return c.Str("remoteURL", txMeta.PodURL)
 			})
 			logger.Debug().Msg("remote transaction found, forwarding")
 
@@ -158,9 +158,9 @@ func Query(ctx context.Context, pool *pgxpool.Pool, queries []*QueryReq, txID *s
 		res, err := tx.RunQueries(ctx, queries)
 		if err != nil {
 			logger.Debug().Msg("error found when running queries in transaction, rolling back")
-			err = Manager.RollbackTx(ctx, *txID)
+			err := Manager.RollbackTx(ctx, *txID)
 			if err != nil {
-				return qres, &DistributedError{Err: fmt.Errorf("error in Manager.RollbackTx: %w", err)}
+				return qres, err
 			}
 		}
 		qres.Queries = res

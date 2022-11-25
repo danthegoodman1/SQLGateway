@@ -72,11 +72,16 @@ func (s *HTTPServer) PostCommit(c *CustomContext) error {
 	defer cancel()
 
 	err := pg.Manager.CommitTx(ctx, body.TxID)
-	if errors.Is(err, context.DeadlineExceeded) {
-		return c.String(http.StatusRequestTimeout, "timed out waiting for free pool connection")
-	}
 	if err != nil {
-		return c.InternalError(err, "error creating new transaction")
+		if errors.Is(err.Err, context.DeadlineExceeded) {
+			return c.String(http.StatusRequestTimeout, "timed out waiting for free pool connection")
+		}
+		if err != nil {
+			return c.InternalError(err.Err, "error committing transaction")
+		}
+		if err.Remote {
+			return c.String(err.StatusCode, err.ErrString)
+		}
 	}
 
 	return c.NoContent(http.StatusOK)
@@ -93,11 +98,16 @@ func (s *HTTPServer) PostRollback(c *CustomContext) error {
 	defer cancel()
 
 	err := pg.Manager.RollbackTx(ctx, body.TxID)
-	if errors.Is(err, context.DeadlineExceeded) {
-		return c.String(http.StatusRequestTimeout, "timed out waiting for free pool connection")
-	}
 	if err != nil {
-		return c.InternalError(err, "error creating new transaction")
+		if errors.Is(err.Err, context.DeadlineExceeded) {
+			return c.String(http.StatusRequestTimeout, "timed out waiting for free pool connection")
+		}
+		if err != nil {
+			return c.InternalError(err.Err, "error rolling back transaction")
+		}
+		if err.Remote {
+			return c.String(err.StatusCode, err.ErrString)
+		}
 	}
 
 	return c.NoContent(http.StatusOK)
