@@ -8,7 +8,10 @@ If given multiple items, they will be run within the same transaction. You will 
 however if a single query fails then the entire transaction will fail, and all queries will remain un-applied regardless
 of whether there were rows returned.
 
-## TODO
+## Running distributed tests
 
-- Register transaction with redis if needed
-- Route transaction request to correct node if not found locally and connected to redis
+Run 2 instances connected to a local CRDB/Postgres and Redis like the following:
+
+```POD_NAME="local" POD_BASE_DOMAIN="host:8080" HTTP_PORT="8080" task```
+
+```POD_NAME="loc" POD_BASE_DOMAIN="alhost:8081" HTTP_PORT="8081" task```
