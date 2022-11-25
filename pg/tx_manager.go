@@ -1,11 +1,18 @@
 package pg
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/danthegoodman1/SQLGateway/red"
 	"github.com/danthegoodman1/SQLGateway/utils"
+	"github.com/go-redis/redis/v9"
 	"github.com/jackc/pgx/v4"
+	"github.com/rs/zerolog"
+	"io"
+	"net/http"
 	"sync"
 	"time"
 )
@@ -22,7 +29,7 @@ type (
 var (
 	ErrTxNotFound = errors.New("transaction not found")
 
-	Manager = NewTxManager()
+	Manager *TxManager
 )
 
 func NewTxManager() *TxManager {
@@ -75,6 +82,26 @@ func (manager *TxManager) NewTx(ctx context.Context) (string, error) {
 		PoolMu:     &sync.Mutex{},
 	}
 
+	podURL := ""
+	if utils.POD_URL != "" {
+		podURL = utils.POD_URL
+	} else {
+		podURL = utils.POD_NAME + utils.POD_BASE_DOMAIN
+	}
+
+	if red.RedisClient != nil {
+		err = red.SetTransaction(ctx, &red.TransactionMeta{
+			TxID:   txID,
+			PodID:  utils.POD_NAME,
+			Expiry: expireTime,
+			PodURL: podURL,
+		})
+		if err != nil {
+			cancel()
+			return "", fmt.Errorf("error in red.SetTransaction: %w", err)
+		}
+	}
+
 	go manager.delayCancelTx(txCtx, cancel, tx.CancelChan, tx.ID)
 
 	manager.txMu.Lock()
@@ -95,8 +122,8 @@ func (manager *TxManager) GetTx(txID string) *Tx {
 	return tx
 }
 
-// PopTx fetches the transaction and removes it from the manager, also sending a signal to cancel the context
-func (manager *TxManager) PopTx(txID string) *Tx {
+// DeleteTx fetches the transaction and removes it from the manager, also sending a signal to cancel the context
+func (manager *TxManager) DeleteTx(txID string) error {
 	manager.txMu.Lock()
 	defer manager.txMu.Unlock()
 
@@ -109,14 +136,75 @@ func (manager *TxManager) PopTx(txID string) *Tx {
 
 	tx.CancelChan <- true
 
-	return tx
+	// TODO: Delete from redis
+
+	return nil
 }
 
 // RollbackTx rolls back the transaction and returns the connection to the pool
-func (manager *TxManager) RollbackTx(ctx context.Context, txID string) error {
-	tx := manager.PopTx(txID)
-	if tx == nil {
-		return ErrTxNotFound
+func (manager *TxManager) RollbackTx(ctx context.Context, txID string) *DistributedError {
+	tx := manager.GetTx(txID)
+	logger := zerolog.Ctx(ctx)
+	logger.UpdateContext(func(c zerolog.Context) zerolog.Context {
+		return c.Str("txID", txID)
+	})
+	logger.Debug().Msg("rolling back")
+	if tx == nil && red.RedisClient != nil {
+		logger.Debug().Msg("checking for remote transaction for rollback")
+
+		// Check for remote transaction
+		txMeta, err := red.GetTransaction(ctx, txID)
+		if errors.Is(err, redis.Nil) {
+			return &DistributedError{Err: ErrTxNotFound}
+		}
+		if err != nil {
+			return &DistributedError{Err: fmt.Errorf("error in red.GetTransaction: %w", err)}
+		}
+
+		if txMeta.PodID == utils.POD_NAME {
+			// The only case would be if this node restarted but maintained the same name, without removing transactions from redis
+			return &DistributedError{Err: ErrTxNotFoundLocal}
+		}
+
+		logger.UpdateContext(func(c zerolog.Context) zerolog.Context {
+			return c.Str("remoteURL", txMeta.PodURL)
+		})
+		logger.Debug().Msg("rolling back on remote")
+
+		// check on remote node
+		bodyJSON, err := json.Marshal(TxIDJSON{
+			TxID: txID,
+		})
+		if err != nil {
+			return &DistributedError{Err: fmt.Errorf("error in json.Marhsal for remote request body: %w", err)}
+		}
+
+		ctx, cancel := context.WithTimeout(ctx, time.Second*30)
+		defer cancel()
+
+		req, err := http.NewRequestWithContext(ctx, "POST", fmt.Sprintf("%s://%s/psql/rollback", utils.GetHTTPPrefix(), txMeta.PodURL), bytes.NewReader(bodyJSON))
+		if err != nil {
+			return &DistributedError{Err: fmt.Errorf("error making http request for remote pod: %w", err)}
+		}
+		req.Header.Set("content-type", "application/json")
+
+		res, err := http.DefaultClient.Do(req)
+		if err != nil {
+			return &DistributedError{Err: fmt.Errorf("error doing request to remote pod: %w", err)}
+		}
+
+		resBodyBytes, err := io.ReadAll(res.Body)
+		if err != nil {
+			return &DistributedError{Err: fmt.Errorf("error reading body bytes from remote pod response: %w", err)}
+		}
+
+		if res.StatusCode != 200 {
+			return &DistributedError{Remote: true, StatusCode: res.StatusCode, ErrString: string(resBodyBytes)}
+		}
+
+		return nil
+	} else if tx == nil {
+		return &DistributedError{Err: ErrTxNotFound}
 	}
 
 	tx.PoolMu.Lock()
@@ -126,17 +214,81 @@ func (manager *TxManager) RollbackTx(ctx context.Context, txID string) error {
 	defer tx.PoolConn.Release()
 
 	if err != nil {
-		return fmt.Errorf("error in Tx.Rollback: %w", err)
+		return &DistributedError{Err: fmt.Errorf("error in Tx.Rollback: %w", err)}
+	}
+
+	err = manager.DeleteTx(txID)
+	if err != nil {
+		return &DistributedError{Err: fmt.Errorf("error in manager.DeleteTx: %w", err)}
 	}
 
 	return nil
 }
 
 // CommitTx commits the transaction and returns the connection to the pool
-func (manager *TxManager) CommitTx(ctx context.Context, txID string) error {
-	tx := manager.PopTx(txID)
-	if tx == nil {
-		return ErrTxNotFound
+func (manager *TxManager) CommitTx(ctx context.Context, txID string) *DistributedError {
+	tx := manager.GetTx(txID)
+	logger := zerolog.Ctx(ctx)
+	logger.UpdateContext(func(c zerolog.Context) zerolog.Context {
+		return c.Str("txID", txID)
+	})
+	logger.Debug().Msg("committing")
+	if tx == nil && red.RedisClient != nil {
+		logger.Debug().Msg("checking for remote transaction for commit")
+
+		// Check for remote transaction
+		txMeta, err := red.GetTransaction(ctx, txID)
+		if errors.Is(err, redis.Nil) {
+			return &DistributedError{Err: ErrTxNotFound}
+		}
+		if err != nil {
+			return &DistributedError{Err: fmt.Errorf("error in red.GetTransaction: %w", err)}
+		}
+
+		if txMeta.PodID == utils.POD_NAME {
+			// The only case would be if this node restarted but maintained the same name, without removing transactions from redis
+			return &DistributedError{Err: ErrTxNotFoundLocal}
+		}
+
+		logger.UpdateContext(func(c zerolog.Context) zerolog.Context {
+			return c.Str("remoteURL", txMeta.PodURL)
+		})
+		logger.Debug().Msg("committing on remote")
+
+		// check on remote node
+		bodyJSON, err := json.Marshal(TxIDJSON{
+			TxID: txID,
+		})
+		if err != nil {
+			return &DistributedError{Err: fmt.Errorf("error in json.Marhsal for remote request body: %w", err)}
+		}
+
+		ctx, cancel := context.WithTimeout(ctx, time.Second*30)
+		defer cancel()
+
+		req, err := http.NewRequestWithContext(ctx, "POST", fmt.Sprintf("%s://%s/psql/commit", utils.GetHTTPPrefix(), txMeta.PodURL), bytes.NewReader(bodyJSON))
+		if err != nil {
+			return &DistributedError{Err: fmt.Errorf("error making http request for remote pod: %w", err)}
+		}
+		req.Header.Set("content-type", "application/json")
+
+		res, err := http.DefaultClient.Do(req)
+		if err != nil {
+			return &DistributedError{Err: fmt.Errorf("error doing request to remote pod: %w", err)}
+		}
+
+		resBodyBytes, err := io.ReadAll(res.Body)
+		if err != nil {
+			return &DistributedError{Err: fmt.Errorf("error reading body bytes from remote pod response: %w", err)}
+		}
+
+		if res.StatusCode != 200 {
+			return &DistributedError{Remote: true, StatusCode: res.StatusCode, ErrString: string(resBodyBytes)}
+		}
+
+		return nil
+	} else if tx == nil {
+		return &DistributedError{Err: ErrTxNotFound}
 	}
 
 	tx.PoolMu.Lock()
@@ -146,7 +298,12 @@ func (manager *TxManager) CommitTx(ctx context.Context, txID string) error {
 	defer tx.PoolConn.Release()
 
 	if err != nil {
-		return fmt.Errorf("error in Tx.Commit: %w", err)
+		return &DistributedError{Err: fmt.Errorf("error in Tx.Commit: %w", err)}
+	}
+
+	err = manager.DeleteTx(txID)
+	if err != nil {
+		return &DistributedError{Err: fmt.Errorf("error in manager.DeleteTx: %w", err)}
 	}
 
 	return nil
@@ -188,7 +345,7 @@ func (manager *TxManager) handleExpiredTransactions() {
 		// We will wait forever to try and handle it
 		err := manager.RollbackTx(context.Background(), txID)
 		if err != nil {
-			logger.Error().Err(err).Msgf("error rolling back transaction", txID)
+			logger.Error().Err(err.Err).Msgf("error rolling back transaction %s", txID)
 		} else {
 			logger.Debug().Msgf("expired transaction %s", txID)
 		}
@@ -198,4 +355,5 @@ func (manager *TxManager) handleExpiredTransactions() {
 func (manager *TxManager) Shutdown() {
 	manager.tickerStopChan <- true
 	// We do wait for all HTTP requests to end before doing this
+	// TODO: Remove all transactions from redis in case this gets the same name
 }

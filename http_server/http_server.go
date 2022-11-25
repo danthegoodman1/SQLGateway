@@ -29,7 +29,7 @@ type CustomValidator struct {
 }
 
 func StartHTTPServer() *HTTPServer {
-	listener, err := net.Listen("tcp", fmt.Sprintf(":%s", utils.GetEnvOrDefault("HTTP_PORT", "8080")))
+	listener, err := net.Listen("tcp", fmt.Sprintf(":%s", utils.HTTP_PORT))
 	if err != nil {
 		logger.Error().Err(err).Msg("error creating tcp listener, exiting")
 		os.Exit(1)

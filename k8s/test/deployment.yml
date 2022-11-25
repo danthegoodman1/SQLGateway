@@ -1,0 +1,48 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name:  SQLGateway
+  namespace: default
+  labels:
+    app:  SQLGateway
+spec:
+  selector:
+    matchLabels:
+      app: SQLGateway
+  replicas: 2
+  strategy:
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app:  SQLGateway
+    spec:
+        containers:
+          - name: SQLGateway
+            image: "sqlgateway:latest"
+            imagePullPolicy: Never
+            resources:
+              limits:
+                cpu: 200m
+                memory: 500Mi
+              requests:
+                cpu: 100m
+                memory: 200Mi
+            env:
+              - name: DEBUG
+                value: "1"
+              - name: POD_BASE_DOMAIN
+                value: ".default.svc.cluster.local:8080"
+              - name: POD_NAME
+                valueFrom:
+                  fieldRef:
+                    fieldPath: metadata.name
+              - name: PG_DSN
+                value: "postgresql://root@crdb.default.svc.cluster.local:26257/defaultdb"
+            ports:
+              - containerPort:  8080
+                name:  http
+        restartPolicy: Never
