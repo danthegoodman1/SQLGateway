@@ -65,17 +65,17 @@ func ConnectRedis() error {
 		}
 		logger.Debug().Msg("connected to redis")
 	}
-	go func() {
-		logger.Debug().Msg("starting redis background worker")
-		for {
-			select {
-			case <-Ticker.C:
-				go updateRedisSD()
-			case <-BGStopChan:
-				return
-			}
-		}
-	}()
+	//go func() {
+	//	logger.Debug().Msg("starting redis background worker")
+	//	for {
+	//		select {
+	//		case <-Ticker.C:
+	//			go updateRedisSD()
+	//		case <-BGStopChan:
+	//			return
+	//		}
+	//	}
+	//}()
 	return nil
 }
 
@@ -103,30 +103,29 @@ func peerFromBytes(jsonBytes []byte) (*Peer, error) {
 }
 
 // updateRedisSD should be launched in a go routine
-func updateRedisSD() {
-	logger.Debug().Msg("updating Redis SD")
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
-	defer cancel()
-
-	self, err := getSelfPeerJSONBytes()
-	if err != nil {
-		logger.Error().Err(err).Msg("error getting self peer json bytes")
-		return
-	}
-
-	s := time.Now()
-	_, err = RedisClient.HSet(ctx, utils.V_NAMESPACE, utils.POD_NAME, string(self)).Result()
-	if err != nil {
-		logger.Error().Err(err).Msg("error in RedisClient.HSET")
-		return
-	}
-	since := time.Since(s)
-	logger.Trace().Int64("updateTimeNS", since.Nanoseconds()).Msgf("updated Redis SD in %s", since)
-}
+//func updateRedisSD() {
+//	logger.Debug().Msg("updating Redis SD")
+//	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+//	defer cancel()
+//
+//	self, err := getSelfPeerJSONBytes()
+//	if err != nil {
+//		logger.Error().Err(err).Msg("error getting self peer json bytes")
+//		return
+//	}
+//
+//	s := time.Now()
+//	_, err = RedisClient.HSet(ctx, utils.V_NAMESPACE, utils.POD_NAME, string(self)).Result()
+//	if err != nil {
+//		logger.Error().Err(err).Msg("error in RedisClient.HSET")
+//		return
+//	}
+//	since := time.Since(s)
+//	logger.Debug().Int64("updateTimeNS", since.Nanoseconds()).Msgf("updated Redis SD in %s", since)
+//}
 
 func GetPeers(ctx context.Context) (map[string]*Peer, error) {
 	logger := zerolog.Ctx(ctx)
-	logger.Trace().Msg("listing peers")
 
 	ctx, cancel := context.WithTimeout(ctx, time.Second*5)
 	defer cancel()
@@ -138,7 +137,7 @@ func GetPeers(ctx context.Context) (map[string]*Peer, error) {
 	}
 
 	since := time.Since(s)
-	logger.Trace().Int64("updateTimeNS", since.Nanoseconds()).Msgf("got peers from redis in %s", since)
+	logger.Debug().Int64("updateTimeNS", since.Nanoseconds()).Msgf("got peers from redis in %s", since)
 
 	peers := make(map[string]*Peer, 0)
 	for podName, peerJSON := range rHash {
@@ -171,7 +170,7 @@ func SetTransaction(ctx context.Context, txMeta *TransactionMeta) error {
 	if !set {
 		return ErrTxAlreadyExists
 	}
-	logger.Trace().Msgf("set transaction in redis in %s", time.Since(s))
+	logger.Trace().Str("op", "set_transaction").Int64("durationNS", time.Since(s).Nanoseconds()).Msg("set transaction in redis")
 	return nil
 }
 
@@ -181,6 +180,7 @@ func GetTransaction(ctx context.Context, txID string) (txMeta *TransactionMeta, 
 		return c.Str("txID", txID)
 	})
 	logger.Debug().Msg("getting transaction from redis")
+	s := time.Now()
 	txString, err := RedisClient.Get(ctx, txID).Result()
 	if err != nil {
 		return nil, fmt.Errorf("error in RedisClient.Get: %w", err)
@@ -190,6 +190,7 @@ func GetTransaction(ctx context.Context, txID string) (txMeta *TransactionMeta, 
 	if err != nil {
 		return nil, fmt.Errorf("error in json.Unmarshal: %w", err)
 	}
+	logger.Trace().Str("op", "get_transaction").Int64("durationNS", time.Since(s).Nanoseconds()).Msg("set transaction in redis")
 	return
 }
 

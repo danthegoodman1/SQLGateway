@@ -83,8 +83,11 @@ func Query(ctx context.Context, pool *pgxpool.Pool, queries []*QueryReq, txID *s
 	//	res.CacheHit = utils.Ptr(true)
 	//	// Return if cache hit
 	//}
-
+	s := time.Now()
 	if txID != nil {
+		logger.UpdateContext(func(c zerolog.Context) zerolog.Context {
+			return c.Str("txID", *txID)
+		})
 		logger.Debug().Msg("transaction detected, handling queries in transaction")
 
 		tx := Manager.GetTx(*txID)
@@ -178,6 +181,9 @@ func Query(ctx context.Context, pool *pgxpool.Pool, queries []*QueryReq, txID *s
 			return nil
 		})
 	} else {
+		logger.UpdateContext(func(c zerolog.Context) zerolog.Context {
+			return c.Str("localTxID", utils.GenRandomID(""))
+		})
 		queryErr = utils.ReliableExecInTx(ctx, pool, 60*time.Second, func(ctx context.Context, conn pgx.Tx) (err error) {
 			for i, query := range queries {
 				queryRes := runQuery(ctx, conn, utils.Deref(query.Exec, false), query.Statement, query.Params)
@@ -194,6 +200,7 @@ func Query(ctx context.Context, pool *pgxpool.Pool, queries []*QueryReq, txID *s
 		return nil, &DistributedError{Err: fmt.Errorf("error in transaction execution: %w", queryErr)}
 	}
 
+	logger.Trace().Str("op", "query_handler").Int64("durationNS", time.Since(s).Nanoseconds()).Msg("handled query")
 	return qres, nil
 }
 
@@ -249,6 +256,14 @@ func runQuery(ctx context.Context, q Queryable, exec bool, statement string, par
 	//}
 
 	res.TimeNS = utils.Ptr(time.Since(s))
+	logger.Trace().
+		Str("op", "run_query").
+		Str("statement", statement).
+		Bool("exec", exec).
+		Int("numRows", len(res.Rows)).
+		Int64("durationNS", time.Since(s).Nanoseconds()).
+		Msg("ran query")
+
 	return
 }
 
