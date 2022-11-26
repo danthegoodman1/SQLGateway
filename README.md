@@ -20,6 +20,21 @@ The idea was to keep the HTTP layer out of the way and make it feel like you are
 
 Now we can connect the two worlds of WASM-runtimes and SQL databases without vendor lock-in!
 
+Some WASM runtimes that can now use SQL databases:
+
+- Cloudflare Workers
+- Vercel Edge Functions
+- Fastly Compute@Edge
+- Netlify Functions
+
+Some Databases that WASM runtimes can now use:
+
+- AWS RDS & Aurora
+- GCP Cloud SQL
+- CockroachDB Dedicated & Serverless
+- DigitalOcean managed databases
+- UpCloud Managed Databases
+
 ### Querying and Transactions
 
 Send single queries, or send an array of queries to run atomically in a transaction. Build dashboards and create alerts to find slowdowns and hotspots in your code.
