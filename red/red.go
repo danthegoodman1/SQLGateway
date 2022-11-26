@@ -14,7 +14,7 @@ import (
 
 var (
 	RedisClient *redis.Client
-	BGStopChan  = make(chan bool)
+	BGStopChan  = make(chan bool, 1)
 	Ticker      = time.NewTicker(time.Second * 5)
 	logger      = gologger.NewLogger()
 
@@ -170,7 +170,13 @@ func SetTransaction(ctx context.Context, txMeta *TransactionMeta) error {
 	if !set {
 		return ErrTxAlreadyExists
 	}
-	logger.Trace().Str("op", "set_transaction").Int64("durationNS", time.Since(s).Nanoseconds()).Msg("set transaction in redis")
+	if utils.TRACES {
+		logger.UpdateContext(func(c zerolog.Context) zerolog.Context {
+			return c.Interface("set_transaction", gologger.Action{
+				DurationNS: time.Since(s).Nanoseconds(),
+			})
+		})
+	}
 	return nil
 }
 
@@ -190,7 +196,13 @@ func GetTransaction(ctx context.Context, txID string) (txMeta *TransactionMeta, 
 	if err != nil {
 		return nil, fmt.Errorf("error in json.Unmarshal: %w", err)
 	}
-	logger.Trace().Str("op", "get_transaction").Int64("durationNS", time.Since(s).Nanoseconds()).Msg("set transaction in redis")
+	if utils.TRACES {
+		logger.UpdateContext(func(c zerolog.Context) zerolog.Context {
+			return c.Interface("get_transaction", gologger.Action{
+				DurationNS: time.Since(s).Nanoseconds(),
+			})
+		})
+	}
 	return
 }
 
@@ -198,7 +210,7 @@ func Shutdown(ctx context.Context) error {
 	logger.Debug().Msg("shutting down redis client")
 
 	// Stop the background poller
-	BGStopChan <- true
+	//BGStopChan <- true
 
 	// Remove the pod from the cluster
 	_, err := RedisClient.HDel(ctx, utils.V_NAMESPACE, utils.POD_NAME).Result()

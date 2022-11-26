@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/danthegoodman1/SQLGateway/gologger"
 	"github.com/danthegoodman1/SQLGateway/red"
 	"github.com/danthegoodman1/SQLGateway/utils"
 	"github.com/go-redis/redis/v9"
@@ -29,12 +30,12 @@ type (
 	}
 
 	QueryRes struct {
-		Columns  [][]any        `json:",omitempty"`
-		Rows     [][]any        `json:",omitempty"`
-		Error    *string        `json:",omitempty"`
-		TimeNS   *time.Duration `json:",omitempty"`
-		CacheHit *bool          `json:",omitempty"`
-		Cached   *bool          `json:",omitempty"`
+		Columns  [][]any `json:",omitempty"`
+		Rows     [][]any `json:",omitempty"`
+		Error    *string `json:",omitempty"`
+		TimeNS   *int64  `json:",omitempty"`
+		CacheHit *bool   `json:",omitempty"`
+		Cached   *bool   `json:",omitempty"`
 	}
 
 	Queryable interface {
@@ -181,9 +182,6 @@ func Query(ctx context.Context, pool *pgxpool.Pool, queries []*QueryReq, txID *s
 			return nil
 		})
 	} else {
-		logger.UpdateContext(func(c zerolog.Context) zerolog.Context {
-			return c.Str("localTxID", utils.GenRandomID(""))
-		})
 		queryErr = utils.ReliableExecInTx(ctx, pool, 60*time.Second, func(ctx context.Context, conn pgx.Tx) (err error) {
 			for i, query := range queries {
 				queryRes := runQuery(ctx, conn, utils.Deref(query.Exec, false), query.Statement, query.Params)
@@ -200,7 +198,34 @@ func Query(ctx context.Context, pool *pgxpool.Pool, queries []*QueryReq, txID *s
 		return nil, &DistributedError{Err: fmt.Errorf("error in transaction execution: %w", queryErr)}
 	}
 
-	logger.Trace().Str("op", "query_handler").Int64("durationNS", time.Since(s).Nanoseconds()).Msg("handled query")
+	if utils.TRACES {
+		logger.UpdateContext(func(c zerolog.Context) zerolog.Context {
+			// metrics
+			actionLogs := make([]gologger.Action, 0)
+
+			for i, queryRes := range qres.Queries {
+				if queryRes == nil {
+					continue
+				}
+				execd := utils.Deref(queries[i].Exec, false)
+				logger.Debug().Interface("queryRes", queryRes).Msg("got query res")
+				actionLog := gologger.Action{
+					DurationNS: *queryRes.TimeNS,
+					Statement:  queries[i].Statement,
+					Exec:       execd,
+				}
+				if !execd {
+					actionLog.NumRows = utils.Ptr(len(queryRes.Rows))
+				}
+
+				actionLogs = append(actionLogs, actionLog)
+			}
+
+			return c.Interface("query_handler", gologger.Action{
+				DurationNS: time.Since(s).Nanoseconds(),
+			}).Interface("queries", actionLogs)
+		})
+	}
 	return qres, nil
 }
 
@@ -215,6 +240,9 @@ func runQuery(ctx context.Context, q Queryable, exec bool, statement string, par
 	})
 
 	s := time.Now()
+	defer func() {
+		res.TimeNS = utils.Ptr(time.Since(s).Nanoseconds())
+	}()
 
 	if exec {
 		_, err := q.Exec(ctx, statement, params...)
@@ -254,15 +282,6 @@ func runQuery(ctx context.Context, q Queryable, exec bool, statement string, par
 	//	// TODO: Cache result
 	//	res.Cached = utils.Ptr(true)
 	//}
-
-	res.TimeNS = utils.Ptr(time.Since(s))
-	logger.Trace().
-		Str("op", "run_query").
-		Str("statement", statement).
-		Bool("exec", exec).
-		Int("numRows", len(res.Rows)).
-		Int64("durationNS", time.Since(s).Nanoseconds()).
-		Msg("ran query")
 
 	return
 }

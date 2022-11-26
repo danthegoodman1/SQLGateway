@@ -24,4 +24,7 @@ var (
 
 	// Whether to use https for inter-pod communication, defaults to false
 	POD_HTTPS = os.Getenv("POD_HTTPS") == "1"
+
+	// Whether to emit traces in the HTTP logs
+	TRACES = os.Getenv("TRACES") == "1"
 )
