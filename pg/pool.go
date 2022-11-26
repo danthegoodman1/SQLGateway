@@ -50,6 +50,9 @@ type (
 
 	QueryResponse struct {
 		Queries []*QueryRes `json:",omitempty"`
+
+		// Whether this was processed on a remote node
+		Remote bool `json:",omitempty"`
 	}
 
 	TxIDJSON struct {
@@ -159,6 +162,8 @@ func Query(ctx context.Context, pool *pgxpool.Pool, queries []*QueryReq, txID *s
 					return c.Str("remote_pod", txMeta.PodURL)
 				})
 			}
+
+			qres.Remote = true
 
 			return qres, nil
 		} else if tx == nil {
@@ -289,32 +294,38 @@ func runQuery(ctx context.Context, q Queryable, exec bool, statement string, par
 func TraceQueries(ctx context.Context, start time.Time, queries []*QueryReq, qres *QueryResponse) {
 	if utils.TRACES {
 		zerolog.Ctx(ctx).UpdateContext(func(c zerolog.Context) zerolog.Context {
-			// metrics
-			actionLogs := make([]gologger.Action, 0)
+			c = c.Interface("query_handler", gologger.Action{
+				DurationNS: time.Since(start).Nanoseconds(),
+			})
 
-			for i, queryRes := range qres.Queries {
-				if queryRes == nil {
-					continue
-				}
-				execd := utils.Deref(queries[i].Exec, false)
-				actionLog := gologger.Action{
-					DurationNS: *queryRes.TimeNS,
-					Statement:  queries[i].Statement,
-					Exec:       execd,
-				}
-				if !execd {
-					actionLog.NumRows = utils.Ptr(len(queryRes.Rows))
-				}
-				if queryRes.Error != nil {
-					actionLog.Error = *queryRes.Error
+			if !qres.Remote {
+				// We don't include these for pods that delegate to another pod, since that pod will include them
+				actionLogs := make([]gologger.Action, 0)
+
+				for i, queryRes := range qres.Queries {
+					if queryRes == nil {
+						continue
+					}
+					execd := utils.Deref(queries[i].Exec, false)
+					actionLog := gologger.Action{
+						DurationNS: *queryRes.TimeNS,
+						Statement:  queries[i].Statement,
+						Exec:       execd,
+					}
+					if !execd {
+						actionLog.NumRows = utils.Ptr(len(queryRes.Rows))
+					}
+					if queryRes.Error != nil {
+						actionLog.Error = *queryRes.Error
+					}
+
+					actionLogs = append(actionLogs, actionLog)
 				}
 
-				actionLogs = append(actionLogs, actionLog)
+				c = c.Interface("queries", actionLogs)
 			}
 
-			return c.Interface("query_handler", gologger.Action{
-				DurationNS: time.Since(start).Nanoseconds(),
-			}).Interface("queries", actionLogs)
+			return c
 		})
 	}
 }
