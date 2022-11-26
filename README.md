@@ -6,21 +6,21 @@ Access your SQL database over HTTP like it’s a SQL database but with superpowe
 **Superpowers include:**
 
 - HTTP access for SQL databases enable WASM-based runtimes to use TCP-connected DBs
-- Connection pooling protects from reconnects and, wasted idle connections, and bursts of load
+- Connection pooling protects from reconnects, wasted idle connections, and bursts of load
 - Automatic query and transaction tracing
 - Caching capabilities
 
-_Currently only the PSQL protocol is supported. Other protocol support (like MySQL) are on the roadmap._
+_Currently only the PSQL protocol is supported. Additional protocol support (like MySQL) is on the roadmap._
 
 ## Why This Exists
 
-I wanted to use Cloudflare Workers, but also the Postgres ecosystem.
+I wanted to use Cloudflare Workers, but also the Postgres ecosystem (specifically CockroachDB Serverless).
 
 The idea was to keep the HTTP layer out of the way and make it feel like you are talking to a normal SQL database.
 
 ### Querying and Transactions
 
-Send single queries, or send an array of queries to run atomically in a transaction.
+Send single queries, or send an array of queries to run atomically in a transaction. Build dashboards and create alerts to find slowdowns and hotspots in your code.
 
 Start a transaction and go back and forth between the DB and your code just like normal. The nodes in the cluster will automatically route transaction queries to the correct node. Abandoned transactions will be garbage collected.
 
