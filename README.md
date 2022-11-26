@@ -1,7 +1,7 @@
 # SQLGateway
  
 
-Access your SQL database over HTTP like it’s a SQL database but with superpowers.
+Access your SQL database over HTTP like it’s a SQL database but with superpowers. An edge function's best friend
 
 **Superpowers include:**
 
