@@ -1,14 +1,14 @@
 # SQLGateway
  
 
-Access your SQL database over HTTP like it’s a SQL database but with superpowers. An edge function's best friend
+Access your SQL database over HTTP like it’s a SQL database but with superpowers. An edge function's best friend.
 
 **Superpowers include:**
 
 - HTTP access for SQL databases enable WASM-based runtimes to use TCP-connected DBs
-- Connection pooling protects from reconnects and idle connections, while also providing protection with a predictable max-load on the DB
-- Automatic query and transaction tracing finds slow spots and anomalies
-- Caching capabilities for frequent queries
+- Connection pooling protects from reconnects and, wasted idle connections, and bursts of load
+- Automatic query and transaction tracing
+- Caching capabilities
 
 _Currently only the PSQL protocol is supported. Other protocol support (like MySQL) are on the roadmap._
 
@@ -20,7 +20,9 @@ The idea was to keep the HTTP layer out of the way and make it feel like you are
 
 ### Querying and Transactions
 
-Send single queries, multiple queries will run atomically in a transaction, and starting a transaction will give you a consistent pool connection that allows you to go back and forth between the DB and your code just like normal. The nodes in the cluster will automatically route transaction queries to the correct node.
+Send single queries, or send an array of queries to run atomically in a transaction.
+
+Start a transaction and go back and forth between the DB and your code just like normal. The nodes in the cluster will automatically route transaction queries to the correct node. Abandoned transactions will be garbage collected.
 
 ### Automatic query and transaction tracing
 
@@ -29,6 +31,7 @@ Metric logs emitted on the performance of individual queries, as well as entire 
 Coming soon (maybe?): Alerting and dashboards (for now just use some logging provider)
 
 ### Caching (Coming Soon)
+
 Specify SELECTs that don’t need to be consistent you can have them cache and TTL with stale-while-revalidate support.
 
 ### Connection Pooling
@@ -38,7 +41,8 @@ Prevent constant session creation from creating unnecessary load on the DB, and 
 Use HTTP Keep-Alive to keep connections warm for Lambda-like environments, but don’t risk overloading the DB with new connections or leaving tons of resource-intensive DB sessions idle.
 
 ### Database Throttling Under Load
-With a finite number of pool connections, you prevent uncapped load from hitting your database directly. Take down SQLGateway before taking down your DB.
+
+With a finite number of pool connections, you prevent uncapped load from hitting your database directly.
 
 ## /query endpoint
 
