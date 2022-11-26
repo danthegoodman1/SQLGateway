@@ -37,13 +37,13 @@ Some Databases that WASM runtimes can now use:
 
 ### Querying and Transactions
 
-Send single queries, or send an array of queries to run atomically in a transaction. Build dashboards and create alerts to find slowdowns and hotspots in your code.
+Send single queries, or send an array of queries to run atomically in a transaction.
 
 Start a transaction and go back and forth between the DB and your code just like normal. The nodes in the cluster will automatically route transaction queries to the correct node. Abandoned transactions will be garbage collected.
 
 ### Automatic query and transaction tracing
 
-Metric logs emitted on the performance of individual queries, as well as entire transactions.
+Metric logs emitted on the performance of individual queries, as well as entire transactions. Build dashboards and create alerts to find slowdowns and hot-spots in your code.
 
 Coming soon (maybe?): Alerting and dashboards (for now just use some logging provider)
 
