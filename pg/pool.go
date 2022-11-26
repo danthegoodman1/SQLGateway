@@ -85,6 +85,8 @@ func Query(ctx context.Context, pool *pgxpool.Pool, queries []*QueryReq, txID *s
 	//	// Return if cache hit
 	//}
 	s := time.Now()
+	defer TraceQueries(ctx, s, queries, qres)
+
 	if txID != nil {
 		logger.UpdateContext(func(c zerolog.Context) zerolog.Context {
 			return c.Str("txID", *txID)
@@ -152,6 +154,12 @@ func Query(ctx context.Context, pool *pgxpool.Pool, queries []*QueryReq, txID *s
 				return nil, &DistributedError{Err: fmt.Errorf("error in json.Unmarhsal for remote response body: %w", err)}
 			}
 
+			if utils.TRACES {
+				logger.UpdateContext(func(c zerolog.Context) zerolog.Context {
+					return c.Str("remote_pod", txMeta.PodURL)
+				})
+			}
+
 			return qres, nil
 		} else if tx == nil {
 			logger.Debug().Msgf("transaction %s not found", *txID)
@@ -198,34 +206,6 @@ func Query(ctx context.Context, pool *pgxpool.Pool, queries []*QueryReq, txID *s
 		return nil, &DistributedError{Err: fmt.Errorf("error in transaction execution: %w", queryErr)}
 	}
 
-	if utils.TRACES {
-		logger.UpdateContext(func(c zerolog.Context) zerolog.Context {
-			// metrics
-			actionLogs := make([]gologger.Action, 0)
-
-			for i, queryRes := range qres.Queries {
-				if queryRes == nil {
-					continue
-				}
-				execd := utils.Deref(queries[i].Exec, false)
-				logger.Debug().Interface("queryRes", queryRes).Msg("got query res")
-				actionLog := gologger.Action{
-					DurationNS: *queryRes.TimeNS,
-					Statement:  queries[i].Statement,
-					Exec:       execd,
-				}
-				if !execd {
-					actionLog.NumRows = utils.Ptr(len(queryRes.Rows))
-				}
-
-				actionLogs = append(actionLogs, actionLog)
-			}
-
-			return c.Interface("query_handler", gologger.Action{
-				DurationNS: time.Since(s).Nanoseconds(),
-			}).Interface("queries", actionLogs)
-		})
-	}
 	return qres, nil
 }
 
@@ -305,3 +285,36 @@ func runQuery(ctx context.Context, q Queryable, exec bool, statement string, par
 //
 //	return ast.AST.StatementTag() == "SELECT", nil
 //}
+
+func TraceQueries(ctx context.Context, start time.Time, queries []*QueryReq, qres *QueryResponse) {
+	if utils.TRACES {
+		zerolog.Ctx(ctx).UpdateContext(func(c zerolog.Context) zerolog.Context {
+			// metrics
+			actionLogs := make([]gologger.Action, 0)
+
+			for i, queryRes := range qres.Queries {
+				if queryRes == nil {
+					continue
+				}
+				execd := utils.Deref(queries[i].Exec, false)
+				actionLog := gologger.Action{
+					DurationNS: *queryRes.TimeNS,
+					Statement:  queries[i].Statement,
+					Exec:       execd,
+				}
+				if !execd {
+					actionLog.NumRows = utils.Ptr(len(queryRes.Rows))
+				}
+				if queryRes.Error != nil {
+					actionLog.Error = *queryRes.Error
+				}
+
+				actionLogs = append(actionLogs, actionLog)
+			}
+
+			return c.Interface("query_handler", gologger.Action{
+				DurationNS: time.Since(start).Nanoseconds(),
+			}).Interface("queries", actionLogs)
+		})
+	}
+}
