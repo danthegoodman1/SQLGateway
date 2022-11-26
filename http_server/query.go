@@ -45,7 +45,7 @@ func (s *HTTPServer) PostQuery(c *CustomContext) error {
 }
 
 func (s *HTTPServer) PostBegin(c *CustomContext) error {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+	ctx, cancel := context.WithTimeout(c.Request().Context(), time.Second*10)
 	defer cancel()
 
 	txID, err := pg.Manager.NewTx(ctx)
@@ -68,7 +68,7 @@ func (s *HTTPServer) PostCommit(c *CustomContext) error {
 	}
 	defer c.Request().Body.Close()
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+	ctx, cancel := context.WithTimeout(c.Request().Context(), time.Second*10)
 	defer cancel()
 
 	err := pg.Manager.CommitTx(ctx, body.TxID)
@@ -100,7 +100,7 @@ func (s *HTTPServer) PostRollback(c *CustomContext) error {
 	}
 	defer c.Request().Body.Close()
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+	ctx, cancel := context.WithTimeout(c.Request().Context(), time.Second*10)
 	defer cancel()
 
 	err := pg.Manager.RollbackTx(ctx, body.TxID)

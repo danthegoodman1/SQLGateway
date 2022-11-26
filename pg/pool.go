@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/danthegoodman1/SQLGateway/gologger"
 	"github.com/danthegoodman1/SQLGateway/red"
 	"github.com/danthegoodman1/SQLGateway/utils"
 	"github.com/go-redis/redis/v9"
@@ -29,12 +30,12 @@ type (
 	}
 
 	QueryRes struct {
-		Columns  [][]any        `json:",omitempty"`
-		Rows     [][]any        `json:",omitempty"`
-		Error    *string        `json:",omitempty"`
-		TimeNS   *time.Duration `json:",omitempty"`
-		CacheHit *bool          `json:",omitempty"`
-		Cached   *bool          `json:",omitempty"`
+		Columns  [][]any `json:",omitempty"`
+		Rows     [][]any `json:",omitempty"`
+		Error    *string `json:",omitempty"`
+		TimeNS   *int64  `json:",omitempty"`
+		CacheHit *bool   `json:",omitempty"`
+		Cached   *bool   `json:",omitempty"`
 	}
 
 	Queryable interface {
@@ -49,6 +50,9 @@ type (
 
 	QueryResponse struct {
 		Queries []*QueryRes `json:",omitempty"`
+
+		// Whether this was processed on a remote node
+		Remote bool `json:",omitempty"`
 	}
 
 	TxIDJSON struct {
@@ -84,6 +88,8 @@ func Query(ctx context.Context, pool *pgxpool.Pool, queries []*QueryReq, txID *s
 	//	// Return if cache hit
 	//}
 	s := time.Now()
+	defer TraceQueries(ctx, s, queries, qres)
+
 	if txID != nil {
 		logger.UpdateContext(func(c zerolog.Context) zerolog.Context {
 			return c.Str("txID", *txID)
@@ -151,6 +157,14 @@ func Query(ctx context.Context, pool *pgxpool.Pool, queries []*QueryReq, txID *s
 				return nil, &DistributedError{Err: fmt.Errorf("error in json.Unmarhsal for remote response body: %w", err)}
 			}
 
+			if utils.TRACES {
+				logger.UpdateContext(func(c zerolog.Context) zerolog.Context {
+					return c.Str("remote_pod", txMeta.PodURL)
+				})
+			}
+
+			qres.Remote = true
+
 			return qres, nil
 		} else if tx == nil {
 			logger.Debug().Msgf("transaction %s not found", *txID)
@@ -181,9 +195,6 @@ func Query(ctx context.Context, pool *pgxpool.Pool, queries []*QueryReq, txID *s
 			return nil
 		})
 	} else {
-		logger.UpdateContext(func(c zerolog.Context) zerolog.Context {
-			return c.Str("localTxID", utils.GenRandomID(""))
-		})
 		queryErr = utils.ReliableExecInTx(ctx, pool, 60*time.Second, func(ctx context.Context, conn pgx.Tx) (err error) {
 			for i, query := range queries {
 				queryRes := runQuery(ctx, conn, utils.Deref(query.Exec, false), query.Statement, query.Params)
@@ -200,7 +211,6 @@ func Query(ctx context.Context, pool *pgxpool.Pool, queries []*QueryReq, txID *s
 		return nil, &DistributedError{Err: fmt.Errorf("error in transaction execution: %w", queryErr)}
 	}
 
-	logger.Trace().Str("op", "query_handler").Int64("durationNS", time.Since(s).Nanoseconds()).Msg("handled query")
 	return qres, nil
 }
 
@@ -215,6 +225,9 @@ func runQuery(ctx context.Context, q Queryable, exec bool, statement string, par
 	})
 
 	s := time.Now()
+	defer func() {
+		res.TimeNS = utils.Ptr(time.Since(s).Nanoseconds())
+	}()
 
 	if exec {
 		_, err := q.Exec(ctx, statement, params...)
@@ -255,15 +268,6 @@ func runQuery(ctx context.Context, q Queryable, exec bool, statement string, par
 	//	res.Cached = utils.Ptr(true)
 	//}
 
-	res.TimeNS = utils.Ptr(time.Since(s))
-	logger.Trace().
-		Str("op", "run_query").
-		Str("statement", statement).
-		Bool("exec", exec).
-		Int("numRows", len(res.Rows)).
-		Int64("durationNS", time.Since(s).Nanoseconds()).
-		Msg("ran query")
-
 	return
 }
 
@@ -286,3 +290,42 @@ func runQuery(ctx context.Context, q Queryable, exec bool, statement string, par
 //
 //	return ast.AST.StatementTag() == "SELECT", nil
 //}
+
+func TraceQueries(ctx context.Context, start time.Time, queries []*QueryReq, qres *QueryResponse) {
+	if utils.TRACES {
+		zerolog.Ctx(ctx).UpdateContext(func(c zerolog.Context) zerolog.Context {
+			c = c.Interface("query_handler", gologger.Action{
+				DurationNS: time.Since(start).Nanoseconds(),
+			})
+
+			if !qres.Remote {
+				// We don't include these for pods that delegate to another pod, since that pod will include them
+				actionLogs := make([]gologger.Action, 0)
+
+				for i, queryRes := range qres.Queries {
+					if queryRes == nil {
+						continue
+					}
+					execd := utils.Deref(queries[i].Exec, false)
+					actionLog := gologger.Action{
+						DurationNS: *queryRes.TimeNS,
+						Statement:  queries[i].Statement,
+						Exec:       execd,
+					}
+					if !execd {
+						actionLog.NumRows = utils.Ptr(len(queryRes.Rows))
+					}
+					if queryRes.Error != nil {
+						actionLog.Error = *queryRes.Error
+					}
+
+					actionLogs = append(actionLogs, actionLog)
+				}
+
+				c = c.Interface("queries", actionLogs)
+			}
+
+			return c
+		})
+	}
+}

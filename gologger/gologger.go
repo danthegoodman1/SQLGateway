@@ -14,6 +14,16 @@ type ctxKey string
 
 const ReqIDKey ctxKey = "reqID"
 
+type (
+	Action struct {
+		DurationNS int64
+		Statement  string `json:",omitempty"`
+		Error      string `json:",omitempty"`
+		Exec       bool   `json:",omitempty"`
+		NumRows    *int   `json:",omitempty"`
+	}
+)
+
 func init() {
 	l := NewLogger()
 	zerolog.DefaultContextLogger = &l
