@@ -49,6 +49,11 @@ func NewLogger() zerolog.Logger {
 	} else {
 		zerolog.SetGlobalLevel(zerolog.InfoLevel)
 	}
+	if os.Getenv("TRACE") == "1" {
+		zerolog.SetGlobalLevel(zerolog.TraceLevel)
+	} else {
+		zerolog.SetGlobalLevel(zerolog.InfoLevel)
+	}
 
 	return logger
 }
