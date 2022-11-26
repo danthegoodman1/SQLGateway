@@ -18,6 +18,7 @@ type (
 	Action struct {
 		DurationNS int64
 		Statement  string `json:",omitempty"`
+		Error      string `json:",omitempty"`
 		Exec       bool   `json:",omitempty"`
 		NumRows    *int   `json:",omitempty"`
 	}
