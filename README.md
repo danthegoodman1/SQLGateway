@@ -25,7 +25,7 @@ Some WASM runtimes that can now use SQL databases:
 - Cloudflare Workers
 - Vercel Edge Functions
 - Fastly Compute@Edge
-- Netlify Functions
+- Netlify Functions _note: [this](https://wasmedge.org/book/en/write_wasm/js/networking.html#tcp-server) seems to indicate that TCP connections may be supported, since they (at least used to) use WasmEdge. I have not bothered testing however :P_
 
 Some Databases that WASM runtimes can now use:
 
