@@ -39,7 +39,7 @@ Some Databases that WASM runtimes can now use:
 
 Send single queries, or send an array of queries to run atomically in a transaction.
 
-Start a transaction and go back and forth between the DB and your code just like normal. The nodes in the cluster will automatically route transaction queries to the correct node. Abandoned transactions will be garbage collected.
+Start a transaction and go back and forth between the DB and your code just like normal. The nodes in the cluster will automatically route transaction queries to the correct node (coordinated through Redis). Abandoned transactions will be garbage collected.
 
 ### Automatic query and transaction tracing
 
