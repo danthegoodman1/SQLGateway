@@ -61,7 +61,9 @@ Use HTTP Keep-Alive to keep connections warm for Lambda-like environments, but d
 
 With a finite number of pool connections, you prevent uncapped load from hitting your database directly.
 
-## /query endpoint
+## API
+
+### /psql/query
 
 If given a single item, it will be run directly on the connection
 
@@ -87,6 +89,33 @@ Configuration is done through environment variables
 | `HTTP_PORT`        | HTTP port to run the HTTP(2) server on                                                                                      | No                         | `8080`  |
 | `POD_HTTPS`        | Indicates whether the pods should use HTTPS to contact each other.<br/>Set to `1` if they should use HTTPS.                 | No                         |         |
 | `TRACES`           | Indicates whether query trace information should be included in log contexts.<br/>Set to `1` if they should be.             | No                         |         |
+
+## Clustered vs. Single Node
+
+SQLGateway can either be run in a cluster, or as a single node.
+
+If running as a single node, ensure to omit the `REDIS_ADDR` env var.
+
+When running in clustered mode (`REDIS_ADDR` env var present), it will require that a connection to Redis can be established.
+
+When transactions are not found locally, a lookup to Redis will be attempted. If the transaction is found on a remote pod,
+the request will be proxied to the remote pod.
+
+Redis Cluster mode support is on the roadmap.
+
+## Transactions
+
+Transactions (and query requests) have a default timeout of 30 seconds. This will be configurable in the future.
+
+When any query in a transaction fails, the transaction is automatically rolled back and the pool connection released, meaning that the client that errors is not responsible for doing so.
+
+If a transaction times out then it will also automatically roll back and release the pool connection.
+
+if a pod crashes while it has a transaction, then the transaction will be immediately released, but may remain present within Redis.
+A special error is returned for this indicating this may be the case.
+
+If Redis crashes while a transaction is still held on a pod, then other pods will not be able to route transaction queries to this pod.
+The timeout will garbage collect these transactions, but the connection will remain held until it times out. 
 
 ## Running distributed tests
 
