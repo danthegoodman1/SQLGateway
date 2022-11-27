@@ -95,13 +95,39 @@ _`*` indicates optional_
   Queries: []{
       Statement:   string
       Params:      []any
-      Exec:        *bool
+      Exec:        *bool // if provided, then no `Rows` or `Columns` will be returned for this query.
       TxKey:       *string
     }
     
   TxID:    *string
 }
 ```
+
+Examples:
+```json
+{
+  "Queries": [
+    {
+      "Statement": "SELECT $1::INT8 as a_number",
+      "Params": [
+        42
+      ]
+    },
+  ]
+}
+```
+```json
+{
+  "Queries": [
+    {
+      "Statement": "CREATE TABLE test_table IF NOT EXISTS ( id TEXT NOT NULL, val TEXT NOT NULL, PRIMARY KEY(id) )",
+      "Exec": true
+    },
+  ]
+}
+```
+
+**Note:** Casting is probably required for parameters as due to the primitive type selection the SQL cannot always interpret which SQL type a JSON property should use.
 
 If given a single query, it will be run directly on the connection.
 
