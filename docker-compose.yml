@@ -1,0 +1,16 @@
+version: '3'
+services:
+  crdb:
+    image: cockroachdb/cockroach
+    ports:
+      - 26257:26257
+      - 8083:8083
+    command: start-single-node --insecure
+  sqlgateway:
+    image: ghcr.io/danthegoodman1/sqlgateway:latest
+    ports:
+      - 8080:8080
+    environment:
+      - PG_DSN=postgresql://root@crdb:26257/defaultdb
+    depends_on:
+      - crdb
