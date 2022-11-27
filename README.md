@@ -12,6 +12,7 @@ Access your SQL database over HTTP like it’s a SQL database but with superpowe
 
 _Currently only the PSQL protocol is supported. Additional protocol support (like MySQL) is on the roadmap._
 
+- [Quick Start](#quick-start)
 - [Why This Exists](#why-this-exists)
   - [Querying and Transactions](#querying-and-transactions)
   - [Automatic query and transaction tracing](#automatic-query-and-transaction-tracing)
@@ -29,6 +30,41 @@ _Currently only the PSQL protocol is supported. Additional protocol support (lik
 - [Clustered vs. Single Node](#clustered-vs-single-node)
 - [Transactions](#transactions)
 - [Running distributed tests](#running-distributed-tests)
+
+## Quick Start
+
+
+Pull this repo:
+
+```
+git pull github.com/danthegoodman1/SQLGateway
+```
+
+Run the `docker-compose.yml` file:
+
+```
+docker compose up
+```
+
+Then in another terminal, run:
+
+```
+curl --location --request POST 'http://localhost:8080/psql/query' \
+--header 'Content-Type: application/json' \
+--data-raw '{
+    "Queries": [
+        {
+            "Statement": "SELECT 1 as num_one, NOW() as current_time"
+        }
+    ]
+}'
+```
+
+You should get the following back (with a different time):
+
+```
+{"Queries":[{"Columns":[["num_one","current_time"]],"Rows":[[1,"2022-11-27T19:20:13.030114Z"]],"TimeNS":958400}]}
+```
 
 ## Why This Exists
 
@@ -112,7 +148,7 @@ Examples:
       "Params": [
         42
       ]
-    },
+    }
   ]
 }
 ```
@@ -122,7 +158,7 @@ Examples:
     {
       "Statement": "CREATE TABLE test_table IF NOT EXISTS ( id TEXT NOT NULL, val TEXT NOT NULL, PRIMARY KEY(id) )",
       "Exec": true
-    },
+    }
   ]
 }
 ```
@@ -203,20 +239,22 @@ All processing errors (not query errors) will return a 4XX/5XX error code, and a
 
 Configuration is done through environment variables
 
-| Env Var            | Description                                                                                                                 | Required?                  | Default |
-|--------------------|-----------------------------------------------------------------------------------------------------------------------------|----------------------------|---------|
-| `PG_DSN`           | PSQL wire protocol DSN. Used to connect to DB                                                                               | Yes                        |         |
-| `PG_POOL_CONNS`    | Number of pool connections to acquire                                                                                       | No                         | `2`     |
-| `REDIS_ADDR`       | Redis Address. Currently used in non-cluster mode (standard client).<br/>If omitted then clustering features are disabled.  | No                         |         |
-| `REDIS_PASSWORD`   | Redis connection password                                                                                                   | No                         |         |
-| `REDIS_POOL_CONNS` | Number of pool connections to Redis.                                                                                        | No                         | `2`     |
-| `V_NAMESPACE`      | Virtual namespace for Redis. Sets the key prefix for Service discovery.                                                     | Yes (WIP, so No currently) |         |
-| `POD_URL`          | Direct URL that this pod/node can be reached at.<br/>Replaces `POD_NAME` and `POD_BASE_DOMAIN` if exists.                   | Yes (conditional)          |         |
-| `POD_NAME`         | Name of the node/pod (k8s semantics).<br/>Pod can be reached at {POD_NAME}{POD_BASE_DOMAIN}                                 | Yes (conditional)          |         |
-| `POD_BASE_DOMAIN`  | Base domain of the node/pod (k8s semantics).<br/>Pod can be reached at {POD_NAME}{POD_BASE_DOMAIN}                          | Yes (conditional)          |         |
-| `HTTP_PORT`        | HTTP port to run the HTTP(2) server on                                                                                      | No                         | `8080`  |
-| `POD_HTTPS`        | Indicates whether the pods should use HTTPS to contact each other.<br/>Set to `1` if they should use HTTPS.                 | No                         |         |
-| `TRACES`           | Indicates whether query trace information should be included in log contexts.<br/>Set to `1` if they should be.             | No                         |         |
+| Env Var            | Description                                                                                                               | Required?                  | Default |
+|--------------------|---------------------------------------------------------------------------------------------------------------------------|----------------------------|---------|
+| `PG_DSN`           | PSQL wire protocol DSN. Used to connect to DB                                                                             | Yes                        |         |
+| `PG_POOL_CONNS`    | Number of pool connections to acquire                                                                                     | No                         | `2`     |
+| `REDIS_ADDR`       | Redis Address. Currently used in non-cluster mode (standard client).<br/>If omitted then clustering features are disabled. | No                         |         |
+| `REDIS_PASSWORD`   | Redis connection password                                                                                                 | No                         |         |
+| `REDIS_POOL_CONNS` | Number of pool connections to Redis.                                                                                      | No                         | `2`     |
+| `V_NAMESPACE`      | Virtual namespace for Redis. Sets the key prefix for Service discovery.                                                   | Yes (WIP, so No currently) |         |
+| `POD_URL`          | Direct URL that this pod/node can be reached at.<br/>Replaces `POD_NAME` and `POD_BASE_DOMAIN` if exists.                 | Yes (conditional)          |         |
+| `POD_NAME`         | Name of the node/pod (k8s semantics).<br/>Pod can be reached at {POD_NAME}{POD_BASE_DOMAIN}                               | Yes (conditional)          |         |
+| `POD_BASE_DOMAIN`  | Base domain of the node/pod (k8s semantics).<br/>Pod can be reached at {POD_NAME}{POD_BASE_DOMAIN}                        | Yes (conditional)          |         |
+| `HTTP_PORT`        | HTTP port to run the HTTP(2) server on                                                                                    | No                         | `8080`  |
+| `POD_HTTPS`        | Indicates whether the pods should use HTTPS to contact each other.<br/>Set to `1` if they should use HTTPS.               | No                         |         |
+| `TRACES`           | Indicates whether query trace information should be included in log contexts.<br/>Set to `1` if they should be.           | No                         |         |
+| `DEBUG`            | Indicates whether the debug log level should be enabled.<br/>Set to `1` to enable.                                        | No                         |         |
+| `PRETTY`           | Indicates whether pretty logs should be printed.<br/>Set to `1` to enable.                                                |                            |         |
 
 ## Clustered vs. Single Node
 
