@@ -37,7 +37,7 @@ _Currently only the PSQL protocol is supported. Additional protocol support (lik
 Pull this repo:
 
 ```
-git pull github.com/danthegoodman1/SQLGateway
+git pull github.com/danthegoodman1/SQLGateway && cd SQLGateway
 ```
 
 Run the `docker-compose.yml` file:
