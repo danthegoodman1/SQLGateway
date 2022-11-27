@@ -1,5 +1,5 @@
-# SQLGateway
- 
+# SQLGateway <!-- omit in toc -->
+
 
 Access your SQL database over HTTP like it’s a SQL database but with superpowers. An edge function's best friend.
 
@@ -11,6 +11,24 @@ Access your SQL database over HTTP like it’s a SQL database but with superpowe
 - Caching capabilities
 
 _Currently only the PSQL protocol is supported. Additional protocol support (like MySQL) is on the roadmap._
+
+- [Why This Exists](#why-this-exists)
+  - [Querying and Transactions](#querying-and-transactions)
+  - [Automatic query and transaction tracing](#automatic-query-and-transaction-tracing)
+  - [Caching (Coming Soon)](#caching-coming-soon)
+  - [Connection Pooling](#connection-pooling)
+  - [Database Throttling Under Load](#database-throttling-under-load)
+- [API](#api)
+  - [GET /hc](#get-hc)
+  - [POST /psql/query](#post-psqlquery)
+  - [/psql/begin](#psqlbegin)
+  - [/psql/commit](#psqlcommit)
+  - [/psql/rollback](#psqlrollback)
+  - [Error handling](#error-handling)
+- [Configuration](#configuration)
+- [Clustered vs. Single Node](#clustered-vs-single-node)
+- [Transactions](#transactions)
+- [Running distributed tests](#running-distributed-tests)
 
 ## Why This Exists
 
