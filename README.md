@@ -95,8 +95,6 @@ _`*` indicates optional_
   Queries: []{
       Statement:   string
       Params:      []any
-      IgnoreCache: boolean
-      ForceCache:  *bool
       Exec:        *bool
       TxKey:       *string
     }
@@ -124,8 +122,6 @@ Response Body:
         Rows:     [][]any
         Error:    *string
         TimeNS:   *int64 
-        CacheHit: *bool  
-        Cached:   *bool  
     }
     
     // Whether this was proxied to a remote node
