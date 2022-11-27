@@ -65,17 +65,17 @@ func ConnectRedis() error {
 		}
 		logger.Debug().Msg("connected to redis")
 	}
-	//go func() {
-	//	logger.Debug().Msg("starting redis background worker")
-	//	for {
-	//		select {
-	//		case <-Ticker.C:
-	//			go updateRedisSD()
-	//		case <-BGStopChan:
-	//			return
-	//		}
-	//	}
-	//}()
+	go func() {
+		logger.Debug().Msg("starting redis background worker")
+		for {
+			select {
+			case <-Ticker.C:
+				go updateRedisSD()
+			case <-BGStopChan:
+				return
+			}
+		}
+	}()
 	return nil
 }
 
@@ -103,26 +103,26 @@ func peerFromBytes(jsonBytes []byte) (*Peer, error) {
 }
 
 // updateRedisSD should be launched in a go routine
-//func updateRedisSD() {
-//	logger.Debug().Msg("updating Redis SD")
-//	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
-//	defer cancel()
-//
-//	self, err := getSelfPeerJSONBytes()
-//	if err != nil {
-//		logger.Error().Err(err).Msg("error getting self peer json bytes")
-//		return
-//	}
-//
-//	s := time.Now()
-//	_, err = RedisClient.HSet(ctx, utils.V_NAMESPACE, utils.POD_NAME, string(self)).Result()
-//	if err != nil {
-//		logger.Error().Err(err).Msg("error in RedisClient.HSET")
-//		return
-//	}
-//	since := time.Since(s)
-//	logger.Debug().Int64("updateTimeNS", since.Nanoseconds()).Msgf("updated Redis SD in %s", since)
-//}
+func updateRedisSD() {
+	logger.Debug().Msg("updating Redis SD")
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	defer cancel()
+
+	self, err := getSelfPeerJSONBytes()
+	if err != nil {
+		logger.Error().Err(err).Msg("error getting self peer json bytes")
+		return
+	}
+
+	s := time.Now()
+	_, err = RedisClient.HSet(ctx, utils.V_NAMESPACE, utils.POD_NAME, string(self)).Result()
+	if err != nil {
+		logger.Error().Err(err).Msg("error in RedisClient.HSET")
+		return
+	}
+	since := time.Since(s)
+	logger.Debug().Int64("updateTimeNS", since.Nanoseconds()).Msgf("updated Redis SD in %s", since)
+}
 
 func GetPeers(ctx context.Context) (map[string]*Peer, error) {
 	logger := zerolog.Ctx(ctx)
@@ -210,7 +210,7 @@ func Shutdown(ctx context.Context) error {
 	logger.Debug().Msg("shutting down redis client")
 
 	// Stop the background poller
-	//BGStopChan <- true
+	BGStopChan <- true
 
 	// Remove the pod from the cluster
 	_, err := RedisClient.HDel(ctx, utils.V_NAMESPACE, utils.POD_NAME).Result()
