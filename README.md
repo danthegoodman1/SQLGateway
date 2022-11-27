@@ -63,13 +63,101 @@ With a finite number of pool connections, you prevent uncapped load from hitting
 
 ## API
 
-### /psql/query
+### GET /hc
 
-If given a single item, it will be run directly on the connection
+Health check endpoint, only guarantees that the HTTP server is running.
+
+### POST /psql/query
+
+Request Body:
+
+_`*` indicates optional_
+```
+{
+  Queries: []{
+      Statement:   string
+      Params:      []any
+      IgnoreCache: boolean
+      ForceCache:  *bool
+      Exec:        *bool
+      TxKey:       *string
+    }
+    
+  TxID:    *string
+}
+```
+
+If given a single query, it will be run directly on the connection.
 
 If given multiple items, they will be run within the same transaction. You will receive the results of all that succeed,
 however if a single query fails then the entire transaction will fail, and all queries will remain un-applied regardless
-of whether there were rows returned.
+of whether there were rows returned. Rows will be returned for the successful queries of a failing transaction.
+
+If a `TxID` is provided, then it will be run within a transaction, proxying if required.
+
+DO NOT CALL `COMMIT` OR `ROLLBACK` through here, that should be handled via the respective endpoints, or functions within the client libraries.
+
+Response Body:
+
+```
+{
+    Queries []{
+        Columns:  [][]any
+        Rows:     [][]any
+        Error:    *string
+        TimeNS:   *int64 
+        CacheHit: *bool  
+        Cached:   *bool  
+    }
+    
+    // Whether this was proxied to a remote node
+    Remote: bool
+}
+```
+
+Any query errors that occur will be included in the response body, rather than failing the request.
+
+### /psql/begin
+
+Starts a new transaction.
+
+Returns the transaction ID that must be carried through subsequent requests.
+
+Response Body:
+
+```
+{
+    TxID: string
+}
+```
+
+### /psql/commit
+
+Commits an existing transaction. Returns status `200` and no content if successful.
+
+Request Body:
+
+```
+{
+    TxID: string
+}
+```
+
+### /psql/rollback
+
+Rolls back an existing transaction. Returns status `200` and no content if successful. 
+
+Request Body:
+
+```
+{
+    TxID: string
+}
+```
+
+### Error handling
+
+All processing errors (not query errors) will return a 4XX/5XX error code, and as a `text/plain` response body.
 
 ## Configuration
 
