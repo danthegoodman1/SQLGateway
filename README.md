@@ -69,6 +69,25 @@ If given multiple items, they will be run within the same transaction. You will 
 however if a single query fails then the entire transaction will fail, and all queries will remain un-applied regardless
 of whether there were rows returned.
 
+## Configuration
+
+Configuration is done through environment variables
+
+| Env Var            | Description                                                                                                                 | Required?                  | Default |
+|--------------------|-----------------------------------------------------------------------------------------------------------------------------|----------------------------|---------|
+| `PG_DSN`           | PSQL wire protocol DSN. Used to connect to DB                                                                               | Yes                        |         |
+| `PG_POOL_CONNS`    | Number of pool connections to acquire                                                                                       | No                         | `2`     |
+| `REDIS_ADDR`       | Redis Address. Currently used in non-cluster mode (standard client).<br/>If omitted then clustering features are disabled.  | No                         |         |
+| `REDIS_PASSWORD`   | Redis connection password                                                                                                   | No                         |         |
+| `REDIS_POOL_CONNS` | Number of pool connections to Redis.                                                                                        | No                         | `2`     |
+| `V_NAMESPACE`      | Virtual namespace for Redis. Sets the key prefix for Service discovery.                                                     | Yes (WIP, so No currently) |         |
+| `POD_URL`          | Direct URL that this pod/node can be reached at.<br/>Replaces `POD_NAME` and `POD_BASE_DOMAIN` if exists.                   | Yes (conditional)          |         |
+| `POD_NAME`         | Name of the node/pod (k8s semantics).<br/>Pod can be reached at {POD_NAME}{POD_BASE_DOMAIN}                                 | Yes (conditional)          |         |
+| `POD_BASE_DOMAIN`  | Base domain of the node/pod (k8s semantics).<br/>Pod can be reached at {POD_NAME}{POD_BASE_DOMAIN}                          | Yes (conditional)          |         |
+| `HTTP_PORT`        | HTTP port to run the HTTP(2) server on                                                                                      | No                         | `8080`  |
+| `POD_HTTPS`        | Indicates whether the pods should use HTTPS to contact each other.<br/>Set to `1` if they should use HTTPS.                 | No                         |         |
+| `TRACES`           | Indicates whether query trace information should be included in log contexts.<br/>Set to `1` if they should be.             | No                         |         |
+
 ## Running distributed tests
 
 Run 2 instances connected to a local CRDB/Postgres and Redis like the following (DSN and Redis env vars omitted):
