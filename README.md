@@ -13,21 +13,22 @@ _Currently only the PSQL protocol is supported. Additional protocol support (lik
 
 - [Quick Start](#quick-start)
 - [Why This Exists](#why-this-exists)
-    - [Querying and Transactions](#querying-and-transactions)
-    - [Automatic query and transaction tracing](#automatic-query-and-transaction-tracing)
-    - [Caching (Coming Soon)](#caching-coming-soon)
-    - [Connection Pooling](#connection-pooling)
-    - [Database Throttling Under Load](#database-throttling-under-load)
+  - [Querying and Transactions](#querying-and-transactions)
+  - [Automatic query and transaction tracing](#automatic-query-and-transaction-tracing)
+  - [Caching (Coming Soon)](#caching-coming-soon)
+  - [Connection Pooling](#connection-pooling)
+  - [Database Throttling Under Load](#database-throttling-under-load)
 - [API](#api)
-    - [GET /hc](#get-hc)
-    - [POST /psql/query](#post-psqlquery)
-    - [/psql/begin](#psqlbegin)
-    - [/psql/commit](#psqlcommit)
-    - [/psql/rollback](#psqlrollback)
-    - [Error handling](#error-handling)
+  - [GET /hc](#get-hc)
+  - [POST /psql/query](#post-psqlquery)
+  - [/psql/begin](#psqlbegin)
+  - [/psql/commit](#psqlcommit)
+  - [/psql/rollback](#psqlrollback)
+  - [Error handling](#error-handling)
 - [Configuration](#configuration)
 - [Clustered vs. Single Node](#clustered-vs-single-node)
 - [Transactions](#transactions)
+- [Caching](#caching)
 - [Running distributed tests](#running-distributed-tests)
 
 ## Quick Start
@@ -308,6 +309,10 @@ Caching will never occur for a transaction. If a `TxID` is provided then you can
 
 Cache must also be explicitly requested, and must have the same TTL. If an item is cached but has a different TTL, the
 previous cache will be ignored and a new value will be cached under the new TTL.
+
+Caching was chosen to be done through Redis (instead of something like groupcache) for 2 major reasons:
+1. Redis allows for online cache resizing
+2. Cache not affected by cluster resizing
 
 ## Running distributed tests
 
