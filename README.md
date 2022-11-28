@@ -13,18 +13,18 @@ _Currently only the PSQL protocol is supported. Additional protocol support (lik
 
 - [Quick Start](#quick-start)
 - [Why This Exists](#why-this-exists)
-  - [Querying and Transactions](#querying-and-transactions)
-  - [Automatic query and transaction tracing](#automatic-query-and-transaction-tracing)
-  - [Caching (Coming Soon)](#caching-coming-soon)
-  - [Connection Pooling](#connection-pooling)
-  - [Database Throttling Under Load](#database-throttling-under-load)
+    - [Querying and Transactions](#querying-and-transactions)
+    - [Automatic query and transaction tracing](#automatic-query-and-transaction-tracing)
+    - [Caching (Coming Soon)](#caching-coming-soon)
+    - [Connection Pooling](#connection-pooling)
+    - [Database Throttling Under Load](#database-throttling-under-load)
 - [API](#api)
-  - [GET /hc](#get-hc)
-  - [POST /psql/query](#post-psqlquery)
-  - [/psql/begin](#psqlbegin)
-  - [/psql/commit](#psqlcommit)
-  - [/psql/rollback](#psqlrollback)
-  - [Error handling](#error-handling)
+    - [GET /hc](#get-hc)
+    - [POST /psql/query](#post-psqlquery)
+    - [/psql/begin](#psqlbegin)
+    - [/psql/commit](#psqlcommit)
+    - [/psql/rollback](#psqlrollback)
+    - [Error handling](#error-handling)
 - [Configuration](#configuration)
 - [Clustered vs. Single Node](#clustered-vs-single-node)
 - [Transactions](#transactions)
@@ -72,6 +72,9 @@ I wanted to use Cloudflare Workers, but also the Postgres ecosystem (specificall
 The idea was to keep the HTTP layer out of the way and make it feel like you are talking to a normal SQL database.
 
 Now we can connect the two worlds of WASM-runtimes and SQL databases without vendor lock-in!
+
+_Note: WASM is not the limitation itself, but often the implementation of WASM runtimes do not support TCP connections due to
+using pre-made execution environments like the v8 engine. I'm not a WASM/WASI expert, but I know they usually can't talk raw TCP :P_
 
 Some WASM runtimes that can now use SQL databases:
 
@@ -311,6 +314,7 @@ Cache must also be explicitly requested, and must have the same TTL. If an item 
 previous cache will be ignored and a new value will be cached under the new TTL.
 
 Caching was chosen to be done through Redis (instead of something like groupcache) for 2 major reasons:
+
 1. Redis allows for online cache resizing
 2. Cache not affected by cluster resizing
 
