@@ -265,6 +265,7 @@ Configuration is done through environment variables
 | `TRACES`           | Indicates whether query trace information should be included in log contexts.<br/>Set to `1` if they should be.            | No                         |         |
 | `DEBUG`            | Indicates whether the debug log level should be enabled.<br/>Set to `1` to enable.                                         | No                         |         |
 | `PRETTY`           | Indicates whether pretty logs should be printed.<br/>Set to `1` to enable.                                                 |                            |         |
+| `CACHE_MAX_MB`     | The max value in megabytes that will be consumed for the cache if Redis is not used.                                       | Yes (conditional)          | `500`   |
 
 ## Clustered vs. Single Node
 
@@ -297,6 +298,16 @@ A special error is returned for this indicating this may be the case.
 If Redis crashes while a transaction is still held on a pod, then other pods will not be able to route transaction
 queries to this pod.
 The timeout will garbage collect these transactions, but the connection will remain held until it times out.
+
+## Caching
+
+The cache used depends on whether Redis is used. If Redis is used, then caching is done through Redis to ensure that it
+is shared. If Redis is not used, then it is done locally on the pod in memory.
+
+Caching will never occur for a transaction. If a `TxID` is provided then you can ensure that no cache will be used.
+
+Cache must also be explicitly requested, and must have the same TTL. If an item is cached but has a different TTL, the
+previous cache will be ignored and a new value will be cached under the new TTL.
 
 ## Running distributed tests
 

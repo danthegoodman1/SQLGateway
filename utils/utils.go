@@ -331,3 +331,11 @@ func GetHTTPPrefix() string {
 	}
 	return "http"
 }
+
+func GetPodHTTPURL() string {
+	temp := POD_URL
+	if POD_URL == "" {
+		temp = POD_NAME + POD_BASE_DOMAIN
+	}
+	return temp + ":" + HTTP_PORT
+}

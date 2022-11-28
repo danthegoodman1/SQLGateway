@@ -82,12 +82,7 @@ func (manager *TxManager) NewTx(ctx context.Context) (string, error) {
 		PoolMu:     &sync.Mutex{},
 	}
 
-	podURL := ""
-	if utils.POD_URL != "" {
-		podURL = utils.POD_URL
-	} else {
-		podURL = utils.POD_NAME + utils.POD_BASE_DOMAIN
-	}
+	podURL := utils.GetPodHTTPURL()
 
 	if red.RedisClient != nil {
 		err = red.SetTransaction(ctx, &red.TransactionMeta{

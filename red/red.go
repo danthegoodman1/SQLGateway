@@ -15,7 +15,7 @@ import (
 var (
 	RedisClient *redis.Client
 	BGStopChan  = make(chan bool, 1)
-	Ticker      = time.NewTicker(time.Second * 5)
+	Ticker      *time.Ticker
 	logger      = gologger.NewLogger()
 
 	ErrTxAlreadyExists = errors.New("transaction already exists")
@@ -53,6 +53,7 @@ func ConnectRedis() error {
 			redisOpts.Password = utils.REDIS_PASSWORD
 		}
 
+		//Ticker = time.NewTicker(time.Second * time.Duration(utils.CACHE_UPDATE_INTERVAL_SEC))
 		RedisClient = redis.NewClient(redisOpts)
 
 		// Test connection
@@ -65,17 +66,17 @@ func ConnectRedis() error {
 		}
 		logger.Debug().Msg("connected to redis")
 	}
-	go func() {
-		logger.Debug().Msg("starting redis background worker")
-		for {
-			select {
-			case <-Ticker.C:
-				go updateRedisSD()
-			case <-BGStopChan:
-				return
-			}
-		}
-	}()
+	//go func() {
+	//	logger.Debug().Msg("starting redis background worker")
+	//	for {
+	//		select {
+	//		case <-Ticker.C:
+	//			go updateRedisSD()
+	//		case <-BGStopChan:
+	//			return
+	//		}
+	//	}
+	//}()
 	return nil
 }
 
@@ -103,52 +104,57 @@ func peerFromBytes(jsonBytes []byte) (*Peer, error) {
 }
 
 // updateRedisSD should be launched in a go routine
-func updateRedisSD() {
-	logger.Debug().Msg("updating Redis SD")
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
-	defer cancel()
+//func updateRedisSD() {
+//	logger.Debug().Msg("updating Redis SD")
+//	ctx, cancel := context.WithTimeout(context.Background(), time.Second*time.Duration(utils.CACHE_UPDATE_INTERVAL_SEC))
+//	defer cancel()
+//
+//	self, err := getSelfPeerJSONBytes()
+//	if err != nil {
+//		logger.Error().Err(err).Msg("error getting self peer json bytes")
+//		return
+//	}
+//
+//	s := time.Now()
+//	_, err = RedisClient.HSet(ctx, utils.V_NAMESPACE, utils.POD_NAME, string(self)).Result()
+//	if err != nil {
+//		logger.Error().Err(err).Msg("error in RedisClient.HSET")
+//		return
+//	}
+//	since := time.Since(s)
+//	logger.Debug().Int64("updateTimeNS", since.Nanoseconds()).Msgf("updated Redis SD in %s", since)
+//}
 
-	self, err := getSelfPeerJSONBytes()
-	if err != nil {
-		logger.Error().Err(err).Msg("error getting self peer json bytes")
-		return
-	}
-
-	s := time.Now()
-	_, err = RedisClient.HSet(ctx, utils.V_NAMESPACE, utils.POD_NAME, string(self)).Result()
-	if err != nil {
-		logger.Error().Err(err).Msg("error in RedisClient.HSET")
-		return
-	}
-	since := time.Since(s)
-	logger.Debug().Int64("updateTimeNS", since.Nanoseconds()).Msgf("updated Redis SD in %s", since)
-}
-
-func GetPeers(ctx context.Context) (map[string]*Peer, error) {
-	logger := zerolog.Ctx(ctx)
-
-	ctx, cancel := context.WithTimeout(ctx, time.Second*5)
-	defer cancel()
-
-	s := time.Now()
-	rHash, err := RedisClient.HGetAll(ctx, utils.V_NAMESPACE).Result()
-	if err != nil {
-		return nil, fmt.Errorf("error in RedisClient.HGetAll: %w", err)
-	}
-
-	since := time.Since(s)
-	logger.Debug().Int64("updateTimeNS", since.Nanoseconds()).Msgf("got peers from redis in %s", since)
-
-	peers := make(map[string]*Peer, 0)
-	for podName, peerJSON := range rHash {
-		peer, err := peerFromBytes([]byte(peerJSON))
-		if err != nil {
-			return nil, fmt.Errorf("error in peerFromBytes: %w", err)
-		}
-		peers[podName] = peer
-	}
-	return peers, nil
-}
+//func GetPeers(ctx context.Context) (map[string]*Peer, error) {
+//	logger := zerolog.Ctx(ctx)
+//
+//	ctx, cancel := context.WithTimeout(ctx, time.Second*5)
+//	defer cancel()
+//
+//	s := time.Now()
+//	rHash, err := RedisClient.HGetAll(ctx, utils.V_NAMESPACE).Result()
+//	if err != nil {
+//		return nil, fmt.Errorf("error in RedisClient.HGetAll: %w", err)
+//	}
+//
+//	since := time.Since(s)
+//	logger.Debug().Int64("updateTimeNS", since.Nanoseconds()).Msgf("got peers from redis in %s", since)
+//
+//	peers := make(map[string]*Peer, 0)
+//	for podName, peerJSON := range rHash {
+//		peer, err := peerFromBytes([]byte(peerJSON))
+//		if err != nil {
+//			return nil, fmt.Errorf("error in peerFromBytes: %w", err)
+//		}
+//		// If the peer is expired, ignore it
+//		if peer.LastUpdate.Before(s.Add(time.Second * -5 * time.Duration(utils.CACHE_UPDATE_INTERVAL_SEC))) {
+//			logger.Debug().Interface("peer", peer).Msg("skipping peer, last updated over 5 intervals old")
+//			continue
+//		}
+//		peers[podName] = peer
+//	}
+//	return peers, nil
+//}
 
 func SetTransaction(ctx context.Context, txMeta *TransactionMeta) error {
 	logger := zerolog.Ctx(ctx)
@@ -212,16 +218,18 @@ func Shutdown(ctx context.Context) error {
 	// Stop the background poller
 	BGStopChan <- true
 
-	// Remove the pod from the cluster
+	// Remove the pod from service discovery
 	_, err := RedisClient.HDel(ctx, utils.V_NAMESPACE, utils.POD_NAME).Result()
 	if err != nil {
 		return fmt.Errorf("error in RedisClient.HDel(): %w", err)
 	}
+	logger.Debug().Msg("removed pod from service discovery")
 
 	err = RedisClient.Close()
 	if err != nil {
 		return fmt.Errorf("error in RedisClient.Close(): %w", err)
 	}
+	logger.Debug().Msg("closed redis client")
 
 	return nil
 }
