@@ -27,4 +27,7 @@ var (
 
 	// Whether to emit traces in the HTTP logs
 	TRACES = os.Getenv("TRACES") == "1"
+
+	AUTH_USER = os.Getenv("AUTH_USER")
+	AUTH_PASS = os.Getenv("AUTH_PASS")
 )
