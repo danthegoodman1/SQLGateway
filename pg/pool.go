@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/UltimateTournament/backoff/v4"
+	"github.com/cockroachdb/cockroachdb-parser/pkg/sql/parser"
 	"github.com/danthegoodman1/SQLGateway/gologger"
 	"github.com/danthegoodman1/SQLGateway/red"
 	"github.com/danthegoodman1/SQLGateway/utils"
@@ -23,8 +25,7 @@ type (
 	QueryReq struct {
 		Statement   string
 		Params      []any
-		IgnoreCache *bool
-		ForceCache  *bool
+		CacheTTLSec *int64
 		Exec        *bool
 		TxKey       *string
 	}
@@ -191,7 +192,10 @@ func Query(ctx context.Context, pool *pgxpool.Pool, queries []*QueryReq, txID *s
 	// If single item, don't do in tx
 	if len(queries) == 1 {
 		queryErr = utils.ReliableExec(ctx, pool, time.Second*60, func(ctx context.Context, conn *pgxpool.Conn) error {
-			queryRes := runQuery(ctx, conn, utils.Deref(queries[0].Exec, false), queries[0].Statement, queries[0].Params)
+			queryRes, err := runQuery(ctx, conn, utils.Deref(queries[0].Exec, false), queries[0].Statement, queries[0].Params, queries[0].CacheTTLSec)
+			if err != nil {
+				return backoff.Permanent(fmt.Errorf("error in runQuery: %w", err))
+			}
 			qres.Queries[0] = queryRes
 			if queryRes.Error != nil {
 				return ErrEndTx
@@ -201,7 +205,10 @@ func Query(ctx context.Context, pool *pgxpool.Pool, queries []*QueryReq, txID *s
 	} else {
 		queryErr = utils.ReliableExecInTx(ctx, pool, 60*time.Second, func(ctx context.Context, conn pgx.Tx) (err error) {
 			for i, query := range queries {
-				queryRes := runQuery(ctx, conn, utils.Deref(query.Exec, false), query.Statement, query.Params)
+				queryRes, err := runQuery(ctx, conn, utils.Deref(query.Exec, false), query.Statement, query.Params, query.CacheTTLSec)
+				if err != nil {
+					return backoff.Permanent(fmt.Errorf("error in runQuery: %w", err))
+				}
 				qres.Queries[i] = queryRes
 				if queryRes.Error != nil {
 					return ErrEndTx
@@ -218,7 +225,7 @@ func Query(ctx context.Context, pool *pgxpool.Pool, queries []*QueryReq, txID *s
 	return qres, nil
 }
 
-func runQuery(ctx context.Context, q Queryable, exec bool, statement string, params []any) (res *QueryRes) {
+func runQuery(ctx context.Context, q Queryable, exec bool, statement string, params []any, cacheTTL *int64) (res *QueryRes, err error) {
 	res = &QueryRes{
 		Rows: make([][]any, 0),
 	}
@@ -232,6 +239,22 @@ func runQuery(ctx context.Context, q Queryable, exec bool, statement string, par
 	defer func() {
 		res.TimeNS = utils.Ptr(time.Since(s).Nanoseconds())
 	}()
+
+	selectOnly := false
+	if cacheTTL != nil && !exec {
+		// Verify that we are SELECT
+		selOnly, err := CRDBIsSelectOnly(statement)
+		if err != nil {
+			return nil, fmt.Errorf("error in CRDBIsSelectOnly: %w", err)
+		}
+		selectOnly = selOnly
+
+		// Try to get cached result
+		res.CacheHit = utils.Ptr(true)
+
+		// Continue and put in cache later
+		res.CacheHit = utils.Ptr(false)
+	}
 
 	if exec {
 		_, err := q.Exec(ctx, statement, params...)
@@ -262,6 +285,10 @@ func runQuery(ctx context.Context, q Queryable, exec bool, statement string, par
 			}
 			res.Rows = append(res.Rows, rowVals)
 		}
+
+		if cacheTTL != nil && selectOnly {
+			// Cache the result
+		}
 	}
 
 	//selectOnly, err := CRDBIsSelectOnly(query.Statement)
@@ -275,25 +302,14 @@ func runQuery(ctx context.Context, q Queryable, exec bool, statement string, par
 	return
 }
 
-//func ShouldCache(ignoreCache, forceCache *bool) bool {
-//	if ignoreCache != nil {
-//		return *ignoreCache
-//	}
-//	if forceCache != nil {
-//		return *forceCache
-//	}
-//
-//	return utils.CACHE_DEFAULT
-//}
+func CRDBIsSelectOnly(statement string) (selectOnly bool, err error) {
+	ast, err := parser.ParseOne(statement)
+	if err != nil {
+		return false, fmt.Errorf("error in parser.ParseOne: %w", err)
+	}
 
-//func CRDBIsSelectOnly(statement string) (selectOnly bool, err error) {
-//	ast, err := parser.ParseOne(statement)
-//	if err != nil {
-//		return false, fmt.Errorf("error in parser.ParseOne: %w", err)
-//	}
-//
-//	return ast.AST.StatementTag() == "SELECT", nil
-//}
+	return ast.AST.StatementTag() == "SELECT", nil
+}
 
 func TraceQueries(ctx context.Context, start time.Time, queries []*QueryReq, qres *QueryResponse) {
 	if utils.TRACES {

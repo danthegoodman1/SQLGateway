@@ -22,6 +22,9 @@ var (
 
 	HTTP_PORT = GetEnvOrDefault("HTTP_PORT", "8080")
 
+	CACHE_MAX_VALUES  = GetEnvOrDefaultInt("CACHE_MAX_VALUES", 1_000_000)
+	CACHE_MAX_COST_MB = GetEnvOrDefaultInt("CACHE_MAX_COST_MB", 500)
+
 	// Whether to use https for inter-pod communication, defaults to false
 	POD_HTTPS = os.Getenv("POD_HTTPS") == "1"
 
