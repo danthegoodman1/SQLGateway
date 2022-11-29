@@ -59,6 +59,10 @@ type (
 		TxID string
 	}
 
+	BeginRequest struct {
+		TxTimeoutSec *int64
+	}
+
 	DistributedError struct {
 		Err        error
 		Remote     bool

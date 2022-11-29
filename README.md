@@ -197,6 +197,14 @@ Any query errors that occur will be included in the response body, rather than f
 
 Starts a new transaction.
 
+Request Body:
+
+```
+{
+    TxTimeoutSec: *int64 // sets the garbage collection timeout, default `30`
+}
+```
+
 Returns the transaction ID that must be carried through subsequent requests.
 
 Response Body:
