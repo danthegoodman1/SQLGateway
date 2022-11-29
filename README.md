@@ -27,6 +27,7 @@ _Currently only the PSQL protocol is supported. Additional protocol support (lik
   - [/psql/rollback](#psqlrollback)
   - [Error handling](#error-handling)
 - [Configuration](#configuration)
+- [Auth](#auth)
 - [Clustered vs. Single Node](#clustered-vs-single-node)
 - [Transactions](#transactions)
 - [Running distributed tests](#running-distributed-tests)
@@ -247,22 +248,38 @@ All processing errors (not query errors) will return a 4XX/5XX error code, and a
 
 Configuration is done through environment variables
 
-| Env Var            | Description                                                                                                               | Required?                  | Default |
-|--------------------|---------------------------------------------------------------------------------------------------------------------------|----------------------------|---------|
-| `PG_DSN`           | PSQL wire protocol DSN. Used to connect to DB                                                                             | Yes                        |         |
-| `PG_POOL_CONNS`    | Number of pool connections to acquire                                                                                     | No                         | `2`     |
+| Env Var            | Description                                                                                                                | Required?                  | Default |
+|--------------------|----------------------------------------------------------------------------------------------------------------------------|----------------------------|---------|
+| `PG_DSN`           | PSQL wire protocol DSN. Used to connect to DB                                                                              | Yes                        |         |
+| `PG_POOL_CONNS`    | Number of pool connections to acquire                                                                                      | No                         | `2`     |
 | `REDIS_ADDR`       | Redis Address. Currently used in non-cluster mode (standard client).<br/>If omitted then clustering features are disabled. | No                         |         |
-| `REDIS_PASSWORD`   | Redis connection password                                                                                                 | No                         |         |
-| `REDIS_POOL_CONNS` | Number of pool connections to Redis.                                                                                      | No                         | `2`     |
-| `V_NAMESPACE`      | Virtual namespace for Redis. Sets the key prefix for Service discovery.                                                   | Yes (WIP, so No currently) |         |
-| `POD_URL`          | Direct URL that this pod/node can be reached at.<br/>Replaces `POD_NAME` and `POD_BASE_DOMAIN` if exists.                 | Yes (conditional)          |         |
-| `POD_NAME`         | Name of the node/pod (k8s semantics).<br/>Pod can be reached at {POD_NAME}{POD_BASE_DOMAIN}                               | Yes (conditional)          |         |
-| `POD_BASE_DOMAIN`  | Base domain of the node/pod (k8s semantics).<br/>Pod can be reached at {POD_NAME}{POD_BASE_DOMAIN}                        | Yes (conditional)          |         |
-| `HTTP_PORT`        | HTTP port to run the HTTP(2) server on                                                                                    | No                         | `8080`  |
-| `POD_HTTPS`        | Indicates whether the pods should use HTTPS to contact each other.<br/>Set to `1` if they should use HTTPS.               | No                         |         |
-| `TRACES`           | Indicates whether query trace information should be included in log contexts.<br/>Set to `1` if they should be.           | No                         |         |
-| `DEBUG`            | Indicates whether the debug log level should be enabled.<br/>Set to `1` to enable.                                        | No                         |         |
-| `PRETTY`           | Indicates whether pretty logs should be printed.<br/>Set to `1` to enable.                                                |                            |         |
+| `REDIS_PASSWORD`   | Redis connection password                                                                                                  | No                         |         |
+| `REDIS_POOL_CONNS` | Number of pool connections to Redis.                                                                                       | No                         | `2`     |
+| `V_NAMESPACE`      | Virtual namespace for Redis. Sets the key prefix for Service discovery.                                                    | Yes (WIP, so No currently) |         |
+| `POD_URL`          | Direct URL that this pod/node can be reached at.<br/>Replaces `POD_NAME` and `POD_BASE_DOMAIN` if exists.                  | Yes (conditional)          |         |
+| `POD_NAME`         | Name of the node/pod (k8s semantics).<br/>Pod can be reached at {POD_NAME}{POD_BASE_DOMAIN}                                | Yes (conditional)          |         |
+| `POD_BASE_DOMAIN`  | Base domain of the node/pod (k8s semantics).<br/>Pod can be reached at {POD_NAME}{POD_BASE_DOMAIN}                         | Yes (conditional)          |         |
+| `HTTP_PORT`        | HTTP port to run the HTTP(2) server on                                                                                     | No                         | `8080`  |
+| `POD_HTTPS`        | Indicates whether the pods should use HTTPS to contact each other.<br/>Set to `1` if they should use HTTPS.                | No                         |         |
+| `TRACES`           | Indicates whether query trace information should be included in log contexts.<br/>Set to `1` if they should be.            | No                         |         |
+| `DEBUG`            | Indicates whether the debug log level should be enabled.<br/>Set to `1` to enable.                                         | No                         |         |
+| `PRETTY`           | Indicates whether pretty logs should be printed.<br/>Set to `1` to enable.                                                 |                            |         |
+| `AUTH_USER`        | Sets the Basic Auth username required to connect. Requires that `AUTH_PASS` be set as well                                 | Yes (conditional)          |         |
+| `AUTH_PASS`        | Sets the Basic Auth password required to connect. Requires that `AUTH_USER` be set as well                                 | Yes (conditional)          |         |
+
+## Auth
+
+SQLGateway optionally supports Basic Auth in the style of `http(s)://USER:PASS@your.domain.tld`, just like a DB DSN.
+
+To configure a username and password, set the env vars `AUTH_USER` and `AUTH_PASS`, then access with `http://{AUTH_USER}:{AUTH_PASS}@yourdomain`
+
+## Performance and Overhead
+
+With some light testing on my laptop (2019 16" MBP, 8 core 64GB ram) selecting 10,001 rows directly from `pgx` without processing takes ~8-9ms, while requesting that same query through SQLGateway takes ~12-13ms.
+
+SQLGateway currently uses the native JSON package, which is known to be very slow. The binding overhead can be optimized by >10x with a more efficient JSON package for binding.
+
+HTTP overhead is ~80us per request, a bit more if you add in Basic Auth.
 
 ## Clustered vs. Single Node
 
