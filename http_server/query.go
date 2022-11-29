@@ -45,10 +45,16 @@ func (s *HTTPServer) PostQuery(c *CustomContext) error {
 }
 
 func (s *HTTPServer) PostBegin(c *CustomContext) error {
+	var body pg.BeginRequest
+	if err := ValidateRequest(c, &body); err != nil {
+		return c.String(http.StatusBadRequest, err.Error())
+	}
+	defer c.Request().Body.Close()
+
 	ctx, cancel := context.WithTimeout(c.Request().Context(), time.Second*10)
 	defer cancel()
 
-	txID, err := pg.Manager.NewTx(ctx)
+	txID, err := pg.Manager.NewTx(ctx, body.TxTimeoutSec)
 	if errors.Is(err, context.DeadlineExceeded) {
 		return c.String(http.StatusRequestTimeout, "timed out waiting for free pool connection")
 	}

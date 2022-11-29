@@ -56,10 +56,10 @@ func NewTxManager() *TxManager {
 }
 
 // NewTx starts a new transaction, returning the ID
-func (manager *TxManager) NewTx(ctx context.Context) (string, error) {
+func (manager *TxManager) NewTx(ctx context.Context, timeoutSec *int64) (string, error) {
 	txID := utils.GenRandomID("tx")
 
-	expireTime := time.Now().Add(time.Second * 30)
+	expireTime := time.Now().Add(time.Second * time.Duration(utils.Deref(timeoutSec, 30)))
 	poolConn, err := PGPool.Acquire(ctx)
 	if err != nil {
 		return "", fmt.Errorf("error in PGPool.Acquire: %w", err)
