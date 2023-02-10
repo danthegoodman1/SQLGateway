@@ -292,7 +292,7 @@ When running in clustered mode (`REDIS_ADDR` env var present), it will require t
 When transactions are not found locally, a lookup to Redis will be attempted. If the transaction is found on a remote pod,
 the request will be proxied to the remote pod.
 
-Redis Cluster mode support is on the roadmap.
+Redis Cluster mode support and etcd support are on the roadmap.
 
 ## Transactions
 
