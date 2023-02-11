@@ -296,7 +296,7 @@ Redis Cluster mode support and etcd support are on the roadmap.
 
 ## Transactions
 
-Transactions (and query requests) have a default timeout of 30 seconds. This will be configurable in the future.
+Transactions (and query requests) have a default timeout of 30 seconds.
 
 When any query in a transaction fails, the transaction is automatically rolled back and the pool connection released, meaning that the client that errors is not responsible for doing so.
 
