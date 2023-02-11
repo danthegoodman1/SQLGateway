@@ -302,7 +302,7 @@ When any query in a transaction fails, the transaction is automatically rolled b
 
 If a transaction times out then it will also automatically roll back and release the pool connection.
 
-if a pod crashes while it has a transaction, then the transaction will be immediately released, but may remain present within Redis.
+If a pod crashes while it has a transaction, then the transaction will be immediately released, but may remain present within Redis.
 A special error is returned for this indicating this may be the case.
 
 If Redis crashes while a transaction is still held on a pod, then other pods will not be able to route transaction queries to this pod.
