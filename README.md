@@ -64,7 +64,7 @@ curl --location --request POST 'http://localhost:8080/psql/query' \
 You should get the following back (with a different time):
 
 ```
-{"Queries":[{"Columns":[["num_one","current_time"]],"Rows":[[1,"2022-11-27T19:20:13.030114Z"]],"TimeNS":958400}]}
+{"Queries":[{"Columns":["num_one","current_time"],"Rows":[[1,"2022-11-27T19:20:13.030114Z"]],"TimeNS":958400}]}
 ```
 
 ## Why This Exists
@@ -181,7 +181,7 @@ Response Body:
 ```
 {
     Queries []{
-        Columns:  [][]any
+        Columns:  []any
         Rows:     [][]any
         Error:    *string
         TimeNS:   *int64 

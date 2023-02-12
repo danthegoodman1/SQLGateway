@@ -1,0 +1,17 @@
+### Health check
+GET http://localhost:8080/hc
+
+### Run Query
+POST http://localhost:8080/psql/query
+content-type: application/json
+
+{
+  "Queries": [
+    {
+      "Statement": "SELECT $1::INT8 as a_number",
+      "Params": [
+        42
+      ]
+    }
+  ]
+}

@@ -30,7 +30,7 @@ type (
 	}
 
 	QueryRes struct {
-		Columns  [][]any `json:",omitempty"`
+		Columns  []any   `json:",omitempty"`
 		Rows     [][]any `json:",omitempty"`
 		Error    *string `json:",omitempty"`
 		TimeNS   *int64  `json:",omitempty"`
@@ -247,11 +247,10 @@ func runQuery(ctx context.Context, q Queryable, exec bool, statement string, par
 			logger.Warn().Err(err).Msg("got query error")
 			return
 		}
-		colNames := make([]any, len(rows.FieldDescriptions()))
-		for i, desc := range rows.FieldDescriptions() {
-			colNames[i] = string(desc.Name)
+		//colNames := make([]any, len(rows.FieldDescriptions()))
+		for _, desc := range rows.FieldDescriptions() {
+			res.Columns = append(res.Columns, string(desc.Name))
 		}
-		res.Columns = append(res.Columns, colNames)
 
 		// Get res values
 		for rows.Next() {
